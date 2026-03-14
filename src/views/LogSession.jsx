@@ -191,7 +191,7 @@ export default function LogSession() {
         )}
 
         {/* Date + Duration */}
-        <div className="grid grid-cols-2 gap-4">
+        <div className="grid grid-cols-3 gap-4">
           <div>
             <label className="label">Date</label>
             <input
@@ -202,21 +202,41 @@ export default function LogSession() {
             />
           </div>
           <div>
-            <label className="label">Duration (minutes)</label>
+            <label className="label">Hours</label>
             <input
               type="number"
               className="input"
-              min={1}
-              max={720}
-              value={form.minutes}
-              onChange={(e) => set("minutes", e.target.value)}
+              min={0}
+              max={23}
+              value={Math.floor(form.minutes / 60)}
+              onChange={(e) => {
+                const h = Math.max(0, Number(e.target.value) || 0);
+                set("minutes", h * 60 + (form.minutes % 60));
+              }}
+            />
+          </div>
+          <div>
+            <label className="label">Minutes</label>
+            <input
+              type="number"
+              className="input"
+              min={0}
+              max={59}
+              value={form.minutes % 60}
+              onChange={(e) => {
+                const m = Math.min(
+                  59,
+                  Math.max(0, Number(e.target.value) || 0),
+                );
+                set("minutes", Math.floor(form.minutes / 60) * 60 + m);
+              }}
             />
           </div>
         </div>
 
         {/* Quick duration buttons */}
         <div className="flex gap-2 flex-wrap">
-          {[15, 30, 45, 60, 90, 120].map((m) => (
+          {[15, 30, 45, 60, 90, 120, 240, 480].map((m) => (
             <button
               key={m}
               onClick={() => set("minutes", m)}
@@ -226,7 +246,7 @@ export default function LogSession() {
                   : "bg-surface-600 text-surface-300 hover:bg-surface-500"
               }`}
             >
-              {m}m
+              {formatDuration(m)}
             </button>
           ))}
         </div>
