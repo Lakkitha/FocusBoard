@@ -2,22 +2,24 @@ import {
   LayoutDashboard,
   BookOpen,
   Rocket,
+  Briefcase,
   Timer,
   CheckSquare,
   Sparkles,
   Target,
-} from 'lucide-react'
-import { VIEWS } from '../constants'
+} from "lucide-react";
+import { VIEWS } from "../constants";
 
 const NAV_ITEMS = [
-  { view: VIEWS.DASHBOARD,   label: 'Dashboard',      icon: LayoutDashboard },
-  { view: VIEWS.COURSES,     label: 'Courses',        icon: BookOpen },
-  { view: VIEWS.PASSIVE,     label: 'Passive Income', icon: Rocket },
-  { view: VIEWS.LOG_SESSION, label: 'Log Session',    icon: Timer },
-  { view: VIEWS.GOALS,       label: 'Weekly Goals',   icon: CheckSquare },
-]
+  { view: VIEWS.DASHBOARD, label: "Dashboard", icon: LayoutDashboard },
+  { view: VIEWS.COURSES, label: "Courses", icon: BookOpen },
+  { view: VIEWS.PASSIVE, label: "Passive Income", icon: Rocket },
+  { view: VIEWS.PERSONAL, label: "Personal Projects", icon: Briefcase },
+  { view: VIEWS.LOG_SESSION, label: "Log Session", icon: Timer },
+  { view: VIEWS.GOALS, label: "Weekly Goals", icon: CheckSquare },
+];
 
-const AI_ITEM = { view: VIEWS.AI, label: 'AI Assistant', icon: Sparkles }
+const AI_ITEM = { view: VIEWS.AI, label: "AI Assistant", icon: Sparkles };
 
 export default function Sidebar({ currentView, onNavigate }) {
   return (
@@ -27,7 +29,9 @@ export default function Sidebar({ currentView, onNavigate }) {
         <div className="w-7 h-7 rounded-lg bg-brand-purple flex items-center justify-center flex-shrink-0">
           <Target className="w-4 h-4 text-white" />
         </div>
-        <span className="font-bold text-surface-50 tracking-tight text-base">FocusBoard</span>
+        <span className="font-bold text-surface-50 tracking-tight text-base">
+          FocusBoard
+        </span>
       </div>
 
       {/* Navigation */}
@@ -37,21 +41,23 @@ export default function Sidebar({ currentView, onNavigate }) {
         </p>
 
         {NAV_ITEMS.map(({ view, label, icon: Icon }) => {
-          const active = currentView === view
+          const active = currentView === view;
           return (
             <button
               key={view}
               onClick={() => onNavigate(view)}
               className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-all ${
                 active
-                  ? 'bg-brand-purple/20 text-brand-purple'
-                  : 'text-surface-100 hover:bg-surface-600 hover:text-surface-50'
+                  ? "bg-brand-purple/20 text-brand-purple"
+                  : "text-surface-100 hover:bg-surface-600 hover:text-surface-50"
               }`}
             >
-              <Icon className={`w-4 h-4 flex-shrink-0 ${active ? 'text-brand-purple' : 'text-surface-400'}`} />
+              <Icon
+                className={`w-4 h-4 flex-shrink-0 ${active ? "text-brand-purple" : "text-surface-400"}`}
+              />
               {label}
             </button>
-          )
+          );
         })}
       </nav>
 
@@ -61,13 +67,15 @@ export default function Sidebar({ currentView, onNavigate }) {
           onClick={() => onNavigate(AI_ITEM.view)}
           className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-all ${
             currentView === AI_ITEM.view
-              ? 'bg-brand-amber/10 text-brand-amber'
-              : 'text-surface-100 hover:bg-surface-600 hover:text-surface-50'
+              ? "bg-brand-amber/10 text-brand-amber"
+              : "text-surface-100 hover:bg-surface-600 hover:text-surface-50"
           }`}
         >
           <Sparkles
             className={`w-4 h-4 flex-shrink-0 ${
-              currentView === AI_ITEM.view ? 'text-brand-amber' : 'text-surface-400'
+              currentView === AI_ITEM.view
+                ? "text-brand-amber"
+                : "text-surface-400"
             }`}
           />
           AI Assistant
@@ -77,5 +85,5 @@ export default function Sidebar({ currentView, onNavigate }) {
         </button>
       </div>
     </aside>
-  )
+  );
 }
