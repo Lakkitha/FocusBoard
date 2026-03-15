@@ -61,8 +61,7 @@ export default function LogSession() {
 
   const handleSubmit = () => {
     if (form.minutes <= 0) return;
-    if ((form.type === "course" || form.type === "project") && !form.refId)
-      return;
+    if (needsRef && !form.refId) return;
 
     addSession({
       type: form.type,

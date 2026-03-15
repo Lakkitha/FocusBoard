@@ -31,23 +31,6 @@ function sessionCategory(session, courses, projects) {
   return null;
 }
 
-function getWeekRange() {
-  const today = new Date();
-  today.setHours(0, 0, 0, 0);
-  const day = today.getDay();
-  const start = new Date(today);
-  start.setDate(today.getDate() - day);
-  const end = new Date(start);
-  end.setDate(start.getDate() + 6);
-  return { start, end };
-}
-
-function inCurrentWeek(dateStr) {
-  const d = new Date(dateStr);
-  const { start, end } = getWeekRange();
-  return d >= start && d <= end;
-}
-
 const CustomTooltip = ({ active, payload }) => {
   if (active && payload && payload.length) {
     const { name, value, color } = payload[0];
@@ -109,21 +92,15 @@ export default function Dashboard({ onNavigate }) {
   const [editTargets, setEditTargets] = useState(false);
   const [draftTargets, setDraftTargets] = useState({});
 
-  // Current week sessions
-  const weekSessions = useMemo(
-    () => sessions.filter((s) => inCurrentWeek(s.date)),
-    [sessions],
-  );
-
-  // Minutes per category this week
+  // Minutes per category — all time
   const actualMinutes = useMemo(() => {
     const map = { courses: 0, passive: 0, personal: 0, work: 0, health: 0 };
-    for (const s of weekSessions) {
+    for (const s of sessions) {
       const cat = sessionCategory(s, courses, projects);
       if (cat && map[cat] !== undefined) map[cat] += s.minutes || 0;
     }
     return map;
-  }, [weekSessions, courses, projects]);
+  }, [sessions, courses, projects]);
 
   // Target minutes per category
   const targetMinutes = useMemo(
@@ -263,8 +240,7 @@ export default function Dashboard({ onNavigate }) {
       <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
         {CATEGORIES.map((cat) => {
           const actual = actualMinutes[cat.key];
-          const target = targetMinutes[cat.key];
-          const pct = target > 0 ? Math.min(100, (actual / target) * 100) : 0;
+          const pct = totalActual > 0 ? (actual / totalActual) * 100 : 0;
           return (
             <div key={cat.key} className="card space-y-2.5">
               <div className="flex items-center justify-between">
@@ -297,15 +273,13 @@ export default function Dashboard({ onNavigate }) {
         {/* Donut Chart */}
         <div className="lg:col-span-3 card flex flex-col">
           <div className="flex items-center justify-between mb-4">
-            <h2 className="font-semibold text-surface-50">
-              This Week's Activity
-            </h2>
+            <h2 className="font-semibold text-surface-50">All-Time Activity</h2>
             <div className="flex flex-col items-end">
               <span className="text-xl font-bold text-surface-50">
                 {(totalActual / 60).toFixed(1)}h
               </span>
               <span className="text-xs text-surface-400">
-                of {(totalTarget / 60).toFixed(0)}h target
+                · {(totalTarget / 60).toFixed(0)}h/wk target
               </span>
             </div>
           </div>
@@ -338,9 +312,7 @@ export default function Dashboard({ onNavigate }) {
             <div className="flex-1 space-y-3 w-full">
               {CATEGORIES.map((cat) => {
                 const actual = actualMinutes[cat.key];
-                const target = targetMinutes[cat.key];
-                const pct =
-                  target > 0 ? Math.min(100, (actual / target) * 100) : 0;
+                const pct = totalActual > 0 ? (actual / totalActual) * 100 : 0;
                 return (
                   <div key={cat.key} className="space-y-1">
                     <div className="flex items-center justify-between text-xs">
@@ -352,7 +324,8 @@ export default function Dashboard({ onNavigate }) {
                         <span className="text-surface-200">{cat.label}</span>
                       </div>
                       <span className="text-surface-300 tabular-nums">
-                        {(actual / 60).toFixed(1)} / {categoryTargets[cat.key]}h
+                        {(actual / 60).toFixed(1)}h · {categoryTargets[cat.key]}
+                        h/wk
                       </span>
                     </div>
                     <div className="h-1 rounded-full bg-surface-500 overflow-hidden">

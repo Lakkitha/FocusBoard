@@ -212,6 +212,7 @@ export const useStore = create((set, get) => ({
       description: "",
       status: "idea",
       targetHoursPerWeek: 5,
+      milestones: [],
       createdAt: new Date().toISOString(),
       ...project,
     };
@@ -234,6 +235,48 @@ export const useStore = create((set, get) => ({
       personalProjects: s.personalProjects.filter((p) => p.id !== id),
       sessions: s.sessions.filter(
         (s2) => !(s2.type === "personal" && s2.refId === id),
+      ),
+    }));
+    get().persist();
+  },
+
+  addPersonalMilestone: (projectId, text) => {
+    const milestone = { id: uid(), text, done: false };
+    set((s) => ({
+      personalProjects: s.personalProjects.map((p) =>
+        p.id === projectId
+          ? { ...p, milestones: [...(p.milestones || []), milestone] }
+          : p,
+      ),
+    }));
+    get().persist();
+  },
+
+  togglePersonalMilestone: (projectId, milestoneId) => {
+    set((s) => ({
+      personalProjects: s.personalProjects.map((p) =>
+        p.id === projectId
+          ? {
+              ...p,
+              milestones: (p.milestones || []).map((m) =>
+                m.id === milestoneId ? { ...m, done: !m.done } : m,
+              ),
+            }
+          : p,
+      ),
+    }));
+    get().persist();
+  },
+
+  deletePersonalMilestone: (projectId, milestoneId) => {
+    set((s) => ({
+      personalProjects: s.personalProjects.map((p) =>
+        p.id === projectId
+          ? {
+              ...p,
+              milestones: (p.milestones || []).filter((m) => m.id !== milestoneId),
+            }
+          : p,
       ),
     }));
     get().persist();
