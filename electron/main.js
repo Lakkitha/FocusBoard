@@ -2,20 +2,25 @@ const { app, BrowserWindow, ipcMain } = require('electron')
 const path = require('path')
 const fs = require('fs')
 
-// Force consistent app name BEFORE any getPath() call so that both
-// `npm run dev` and the packaged .exe write to the same folder:
-//   Windows: %APPDATA%\Roaming\FocusBoard\
 app.setName('FocusBoard')
 
-const isDev = process.env.NODE_ENV === 'development' || !app.isPackaged
+// isDev can be read before app.ready via app.isPackaged
+const isDev = !app.isPackaged
 
-// Data file path — always %APPDATA%\Roaming\FocusBoard\focusboard-data.json
-const dataDir  = app.getPath('userData')
-const dataFile = path.join(dataDir, 'focusboard-data.json')
+// ── Data directory — shared between dev and packaged so the same JSON file
+//    is used regardless of how you launch the app.
+const sharedDataDir = path.join(app.getPath('appData'), 'FocusBoard')
+const dataFile = path.join(sharedDataDir, 'focusboard-data.json')
 
-// Ensure data directory exists
-if (!fs.existsSync(dataDir)) {
-  fs.mkdirSync(dataDir, { recursive: true })
+// ── Chromium cache (GPU shaders, network cache, etc.) — kept SEPARATE per
+//    mode so dev and packaged can run at the same time without the
+//    "Unable to move the cache: Access is denied" GPU disk-cache error.
+if (isDev) {
+  app.setPath('userData', path.join(app.getPath('appData'), 'FocusBoard-dev'))
+}
+
+if (!fs.existsSync(sharedDataDir)) {
+  fs.mkdirSync(sharedDataDir, { recursive: true })
 }
 
 function createWindow() {

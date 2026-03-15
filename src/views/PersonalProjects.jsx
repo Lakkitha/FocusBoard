@@ -1,14 +1,17 @@
 import { useState, useMemo } from "react";
 import { useStore } from "../store/useStore";
 import Modal from "../components/Modal";
-import { Plus, Pencil, Trash2, Briefcase, Clock } from "lucide-react";
+import {
+  Plus, Pencil, Trash2, Briefcase, Clock,
+  CheckCircle2, Circle, ChevronDown, ChevronUp,
+} from "lucide-react";
 
 const STATUSES = ["idea", "active", "paused", "completed"];
 
 const STATUS_STYLES = {
-  idea: { badge: "bg-surface-500 text-surface-300", dot: "#6b7280" },
-  active: { badge: "bg-pink-500/10 text-pink-400", dot: "#f472b6" },
-  paused: { badge: "bg-amber-500/10 text-brand-amber", dot: "#fbbf24" },
+  idea:      { badge: "bg-surface-500 text-surface-300",  dot: "#6b7280" },
+  active:    { badge: "bg-pink-500/10 text-pink-400",     dot: "#f472b6" },
+  paused:    { badge: "bg-amber-500/10 text-brand-amber", dot: "#fbbf24" },
   completed: { badge: "bg-green-500/10 text-brand-green", dot: "#4ade80" },
 };
 
@@ -44,9 +47,7 @@ function ProjectForm({ initial, onSave, onCancel }) {
             onChange={(e) => set("status", e.target.value)}
           >
             {STATUSES.map((s) => (
-              <option key={s} className="capitalize">
-                {s}
-              </option>
+              <option key={s} className="capitalize">{s}</option>
             ))}
           </select>
         </div>
@@ -75,16 +76,81 @@ function ProjectForm({ initial, onSave, onCancel }) {
 
       <div className="flex gap-2 pt-1">
         <button
-          onClick={() => {
-            if (!form.name.trim()) return;
-            onSave(form);
-          }}
+          onClick={() => { if (!form.name.trim()) return; onSave(form); }}
           className="btn-primary flex-1"
         >
           Save
         </button>
-        <button onClick={onCancel} className="btn-secondary flex-1">
-          Cancel
+        <button onClick={onCancel} className="btn-secondary flex-1">Cancel</button>
+      </div>
+    </div>
+  );
+}
+
+function MilestoneSection({ project }) {
+  const addPersonalMilestone    = useStore((s) => s.addPersonalMilestone);
+  const togglePersonalMilestone = useStore((s) => s.togglePersonalMilestone);
+  const deletePersonalMilestone = useStore((s) => s.deletePersonalMilestone);
+  const [input, setInput] = useState("");
+
+  const handleAdd = () => {
+    const text = input.trim();
+    if (!text) return;
+    addPersonalMilestone(project.id, text);
+    setInput("");
+  };
+
+  const milestones = project.milestones || [];
+  const done = milestones.filter((m) => m.done).length;
+
+  return (
+    <div className="space-y-2">
+      <div className="flex items-center justify-between text-xs text-surface-400">
+        <span className="font-medium text-surface-300">Tasks</span>
+        <span>{done}/{milestones.length} done</span>
+      </div>
+
+      {milestones.length > 0 && (
+        <div className="h-1 rounded-full bg-surface-500 overflow-hidden">
+          <div
+            className="h-full rounded-full bg-pink-400 transition-all duration-500"
+            style={{ width: `${(done / milestones.length) * 100}%` }}
+          />
+        </div>
+      )}
+
+      <ul className="space-y-1.5 mt-2">
+        {milestones.map((m) => (
+          <li key={m.id} className="flex items-center gap-2 group/item">
+            <button onClick={() => togglePersonalMilestone(project.id, m.id)} className="flex-shrink-0">
+              {m.done
+                ? <CheckCircle2 className="w-4 h-4 text-pink-400" />
+                : <Circle className="w-4 h-4 text-surface-400 hover:text-surface-200" />
+              }
+            </button>
+            <span className={`flex-1 text-xs ${m.done ? "line-through text-surface-400" : "text-surface-200"}`}>
+              {m.text}
+            </span>
+            <button
+              onClick={() => deletePersonalMilestone(project.id, m.id)}
+              className="opacity-0 group-hover/item:opacity-100 text-surface-500 hover:text-red-400 transition-all"
+            >
+              <Trash2 className="w-3 h-3" />
+            </button>
+          </li>
+        ))}
+      </ul>
+
+      <div className="flex gap-2">
+        <input
+          className="input text-xs py-1.5"
+          placeholder="Add task…"
+          value={input}
+          onChange={(e) => setInput(e.target.value)}
+          onKeyDown={(e) => e.key === "Enter" && handleAdd()}
+        />
+        <button onClick={handleAdd} className="btn-secondary px-3 py-1.5 text-xs flex-shrink-0">
+          <Plus className="w-3.5 h-3.5" />
         </button>
       </div>
     </div>
@@ -92,6 +158,7 @@ function ProjectForm({ initial, onSave, onCancel }) {
 }
 
 function ProjectCard({ project, onEdit, onDelete }) {
+  const [expanded, setExpanded] = useState(false);
   const sessions = useStore((s) => s.sessions);
 
   const loggedMins = sessions
@@ -99,10 +166,11 @@ function ProjectCard({ project, onEdit, onDelete }) {
     .reduce((acc, s) => acc + s.minutes, 0);
 
   const s = STATUS_STYLES[project.status] || STATUS_STYLES.idea;
+  const milestones = project.milestones || [];
+  const milestoneDone = milestones.filter((m) => m.done).length;
 
   return (
-    <div className="card group flex flex-col gap-3 hover:border-surface-400 transition-all">
-      {/* Header */}
+    <div className="card group flex flex-col gap-3 hover:border-pink-500/30 transition-all">
       <div className="flex items-start gap-3">
         <div className="w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0 bg-pink-500/15">
           <Briefcase className="w-4 h-4 text-pink-400" />
@@ -111,31 +179,46 @@ function ProjectCard({ project, onEdit, onDelete }) {
           <h3 className="font-semibold text-surface-50 text-sm leading-tight truncate">
             {project.name || "Unnamed Project"}
           </h3>
-          <div className="flex items-center gap-2 mt-1">
-            <span className={`badge text-[10px] ${s.badge}`}>
-              {project.status}
-            </span>
-          </div>
+          <span className={`badge mt-1 text-[10px] ${s.badge}`}>{project.status}</span>
         </div>
       </div>
 
-      {/* Stats */}
       <div className="flex items-center justify-between text-xs text-surface-400">
         <span className="flex items-center gap-1">
           <Clock className="w-3 h-3" />
           {(loggedMins / 60).toFixed(1)}h logged
         </span>
-        <span>{project.targetHoursPerWeek}h/wk target</span>
+        <span className="flex items-center gap-3">
+          {milestones.length > 0 && <span>{milestoneDone}/{milestones.length} tasks</span>}
+          <span>{project.targetHoursPerWeek}h/wk</span>
+        </span>
       </div>
 
-      {/* Description preview */}
+      {milestones.length > 0 && (
+        <div className="h-1 rounded-full bg-surface-500 overflow-hidden">
+          <div
+            className="h-full rounded-full bg-pink-400 transition-all duration-500"
+            style={{ width: `${(milestoneDone / milestones.length) * 100}%` }}
+          />
+        </div>
+      )}
+
       {project.description && (
         <p className="text-xs text-surface-400 leading-relaxed line-clamp-2">
           {project.description}
         </p>
       )}
 
-      {/* Actions */}
+      <button
+        onClick={() => setExpanded((v) => !v)}
+        className="flex items-center gap-1.5 text-xs text-surface-400 hover:text-surface-200 transition-colors"
+      >
+        {expanded ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
+        {expanded ? "Hide" : "Show"} tasks
+      </button>
+
+      {expanded && <MilestoneSection project={project} />}
+
       <div className="flex gap-1.5 opacity-0 group-hover:opacity-100 transition-opacity">
         <button
           onClick={() => onEdit(project)}
@@ -155,13 +238,13 @@ function ProjectCard({ project, onEdit, onDelete }) {
 }
 
 export default function PersonalProjects() {
-  const personalProjects = useStore((s) => s.personalProjects);
-  const addPersonalProject = useStore((s) => s.addPersonalProject);
+  const personalProjects      = useStore((s) => s.personalProjects);
+  const addPersonalProject    = useStore((s) => s.addPersonalProject);
   const updatePersonalProject = useStore((s) => s.updatePersonalProject);
   const deletePersonalProject = useStore((s) => s.deletePersonalProject);
 
-  const [showAdd, setShowAdd] = useState(false);
-  const [editing, setEditing] = useState(null);
+  const [showAdd,      setShowAdd]      = useState(false);
+  const [editing,      setEditing]      = useState(null);
   const [statusFilter, setStatusFilter] = useState("All");
 
   const filtered = useMemo(() => {
@@ -169,40 +252,23 @@ export default function PersonalProjects() {
     return personalProjects.filter((p) => p.status === statusFilter);
   }, [personalProjects, statusFilter]);
 
-  const handleAdd = (form) => {
-    addPersonalProject(form);
-    setShowAdd(false);
-  };
-
-  const handleEdit = (form) => {
-    updatePersonalProject(editing.id, form);
-    setEditing(null);
-  };
-
-  const handleDelete = (id) => {
-    if (confirm("Delete this project?")) deletePersonalProject(id);
-  };
+  const handleAdd    = (form) => { addPersonalProject(form);                setShowAdd(false); };
+  const handleEdit   = (form) => { updatePersonalProject(editing.id, form); setEditing(null);  };
+  const handleDelete = (id)   => { if (confirm("Delete this project?")) deletePersonalProject(id); };
 
   return (
     <div className="p-6 space-y-5 max-w-5xl mx-auto">
-      {/* Header */}
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-3">
           <Briefcase className="w-5 h-5 text-pink-400" />
-          <h1 className="text-2xl font-bold text-surface-50">
-            Personal Projects
-          </h1>
+          <h1 className="text-2xl font-bold text-surface-50">Personal Projects</h1>
         </div>
-        <button
-          onClick={() => setShowAdd(true)}
-          className="btn-primary flex items-center gap-2"
-        >
+        <button onClick={() => setShowAdd(true)} className="btn-primary flex items-center gap-2">
           <Plus className="w-4 h-4" />
           Add Project
         </button>
       </div>
 
-      {/* Status filter */}
       <div className="flex gap-2 flex-wrap">
         {["All", ...STATUSES].map((s) => (
           <button
@@ -219,7 +285,6 @@ export default function PersonalProjects() {
         ))}
       </div>
 
-      {/* Stats */}
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
         {STATUSES.map((s) => {
           const count = personalProjects.filter((p) => p.status === s).length;
@@ -227,21 +292,16 @@ export default function PersonalProjects() {
           return (
             <div key={s} className="card text-center">
               <p className="text-xl font-bold text-surface-50">{count}</p>
-              <span className={`badge mt-1 ${style.badge} text-[10px]`}>
-                {s}
-              </span>
+              <span className={`badge mt-1 ${style.badge} text-[10px]`}>{s}</span>
             </div>
           );
         })}
       </div>
 
-      {/* Grid */}
       {filtered.length === 0 ? (
         <div className="card text-center py-12">
           <Briefcase className="w-10 h-10 text-surface-500 mx-auto mb-3" />
-          <p className="text-surface-300 font-medium">
-            No personal projects yet
-          </p>
+          <p className="text-surface-300 font-medium">No personal projects yet</p>
           <p className="text-surface-400 text-sm mt-1">
             Add your first personal project to start tracking time.
           </p>
@@ -261,21 +321,13 @@ export default function PersonalProjects() {
 
       {showAdd && (
         <Modal title="Add Personal Project" onClose={() => setShowAdd(false)}>
-          <ProjectForm
-            initial={BLANK_PROJECT}
-            onSave={handleAdd}
-            onCancel={() => setShowAdd(false)}
-          />
+          <ProjectForm initial={BLANK_PROJECT} onSave={handleAdd} onCancel={() => setShowAdd(false)} />
         </Modal>
       )}
 
       {editing && (
         <Modal title="Edit Personal Project" onClose={() => setEditing(null)}>
-          <ProjectForm
-            initial={editing}
-            onSave={handleEdit}
-            onCancel={() => setEditing(null)}
-          />
+          <ProjectForm initial={editing} onSave={handleEdit} onCancel={() => setEditing(null)} />
         </Modal>
       )}
     </div>
