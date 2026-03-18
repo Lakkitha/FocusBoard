@@ -1,15 +1,12 @@
-import { useState, useMemo } from "react";
+import { useEffect, useState, useMemo } from "react";
 import { useStore } from "../store/useStore";
 import { Timer, Plus, Trash2, Clock, CalendarDays } from "lucide-react";
-import PlatformLogo from "../components/PlatformLogo";
-
-const SESSION_TYPES = [
-  { value: "course", label: "Course / Certification", color: "#7c6af7" },
-  { value: "project", label: "Passive Income Project", color: "#2dd4bf" },
-  { value: "personal", label: "Personal Project", color: "#f472b6" },
-  { value: "work", label: "Job / Main Work", color: "#4fa5ff" },
-  { value: "health", label: "Health & Fitness", color: "#4ade80" },
-];
+import {
+  getCategoryColor,
+  getCategoryLabel,
+  getSessionCategoryKey,
+  getTrackedCategories,
+} from "../viewConfig";
 
 function formatDuration(mins) {
   const h = Math.floor(mins / 60);
@@ -24,6 +21,7 @@ export default function LogSession() {
   const courses = useStore((s) => s.courses);
   const projects = useStore((s) => s.projects);
   const personalProjects = useStore((s) => s.personalProjects);
+  const customViews = useStore((s) => s.customViews);
   const addSession = useStore((s) => s.addSession);
   const deleteSession = useStore((s) => s.deleteSession);
 
@@ -39,20 +37,48 @@ export default function LogSession() {
   });
   const [saved, setSaved] = useState(false);
 
+  const sessionTypes = useMemo(
+    () =>
+      getTrackedCategories(customViews).map((cat) => ({
+        value: cat.sessionType,
+        categoryKey: cat.key,
+        label:
+          cat.key === "courses"
+            ? "Course / Certification"
+            : cat.key === "passive"
+              ? "Passive Income Project"
+              : cat.key === "personal"
+                ? "Personal Project"
+                : cat.label,
+        color: cat.color,
+        needsRef: Boolean(cat.needsRef),
+      })),
+    [customViews],
+  );
+
   const set = (k, v) => setForm((f) => ({ ...f, [k]: v }));
 
+  const selectedType =
+    sessionTypes.find((type) => type.value === form.type) || sessionTypes[0];
+
+  useEffect(() => {
+    if (!sessionTypes.some((type) => type.value === form.type)) {
+      setForm((current) => ({ ...current, type: "course", refId: "" }));
+    }
+  }, [sessionTypes, form.type]);
+
   const refOptions = useMemo(() => {
-    if (form.type === "course")
+    if (selectedType?.categoryKey === "courses")
       return courses.map((c) => ({ id: c.id, label: c.title || "Untitled" }));
-    if (form.type === "project")
+    if (selectedType?.categoryKey === "passive")
       return projects.map((p) => ({ id: p.id, label: p.name || "Unnamed" }));
-    if (form.type === "personal")
+    if (selectedType?.categoryKey === "personal")
       return personalProjects.map((p) => ({
         id: p.id,
         label: p.name || "Unnamed",
       }));
     return [];
-  }, [form.type, courses, projects, personalProjects]);
+  }, [selectedType, courses, projects, personalProjects]);
 
   const handleTypeChange = (type) => {
     set("type", type);
@@ -69,16 +95,7 @@ export default function LogSession() {
       date: form.date,
       minutes: Number(form.minutes),
       note: form.note,
-      category:
-        form.type === "work"
-          ? "work"
-          : form.type === "health"
-            ? "health"
-            : form.type === "course"
-              ? "courses"
-              : form.type === "personal"
-                ? "personal"
-                : "passive",
+      category: selectedType?.categoryKey || "courses",
     });
 
     setSaved(true);
@@ -96,28 +113,30 @@ export default function LogSession() {
   );
 
   const getRefLabel = (s) => {
-    if (s.type === "course") {
+    const catKey = getSessionCategoryKey(s);
+
+    if (catKey === "courses") {
       const c = courses.find((c) => c.id === s.refId);
       return c ? c.title : "—";
     }
-    if (s.type === "project") {
+    if (catKey === "passive") {
       const p = projects.find((p) => p.id === s.refId);
       return p ? p.name : "—";
     }
-    if (s.type === "personal") {
+    if (catKey === "personal") {
       const p = personalProjects.find((p) => p.id === s.refId);
       return p ? p.name : "—";
     }
-    return s.type === "work" ? "Main Work" : "Health & Fitness";
+
+    return getCategoryLabel(catKey, customViews);
   };
 
-  const typeColor = (type) =>
-    SESSION_TYPES.find((t) => t.value === type)?.color || "#7c6af7";
+  const typeColor = (session) => {
+    const catKey = getSessionCategoryKey(session);
+    return getCategoryColor(catKey, customViews);
+  };
 
-  const needsRef =
-    form.type === "course" ||
-    form.type === "project" ||
-    form.type === "personal";
+  const needsRef = Boolean(selectedType?.needsRef);
 
   return (
     <div className="p-6 space-y-6 max-w-3xl mx-auto">
@@ -133,7 +152,7 @@ export default function LogSession() {
         <div>
           <label className="label">Category</label>
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
-            {SESSION_TYPES.map((t) => (
+            {sessionTypes.map((t) => (
               <button
                 key={t.value}
                 onClick={() => handleTypeChange(t.value)}
@@ -162,15 +181,21 @@ export default function LogSession() {
         {needsRef && (
           <div>
             <label className="label">
-              {form.type === "course"
+              {selectedType?.categoryKey === "courses"
                 ? "Course / Certification"
-                : form.type === "personal"
+                : selectedType?.categoryKey === "personal"
                   ? "Personal Project"
-                  : "Project"}
+                  : selectedType?.categoryKey === "passive"
+                    ? "Project"
+                    : "Item"}
             </label>
             {refOptions.length === 0 ? (
               <p className="text-xs text-surface-400">
-                No {form.type === "course" ? "courses" : "projects"} added yet.
+                No{" "}
+                {selectedType?.categoryKey === "courses"
+                  ? "courses"
+                  : "projects"}{" "}
+                added yet.
               </p>
             ) : (
               <select
@@ -298,7 +323,7 @@ export default function LogSession() {
                 {/* Color dot */}
                 <span
                   className="w-2.5 h-2.5 rounded-full flex-shrink-0"
-                  style={{ background: typeColor(s.type) }}
+                  style={{ background: typeColor(s) }}
                 />
                 <div className="flex-1 min-w-0">
                   <p className="text-sm text-surface-50 font-medium truncate">
