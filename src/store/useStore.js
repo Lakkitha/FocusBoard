@@ -25,10 +25,37 @@ const DEFAULT_STATE = {
     health: 5,
     personal: 5,
   },
+
+  // Custom sidebar/time-tracking views [{ id, key, label, color, createdAt }]
+  customViews: [],
 };
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 const uid = () => Math.random().toString(36).slice(2, 10);
+
+const CUSTOM_COLORS = [
+  "#f97316",
+  "#22c55e",
+  "#eab308",
+  "#06b6d4",
+  "#ec4899",
+  "#a855f7",
+  "#ef4444",
+];
+
+function slugifyViewName(name = "") {
+  return name
+    .toLowerCase()
+    .trim()
+    .replace(/[^a-z0-9\s-]/g, "")
+    .replace(/\s+/g, "-")
+    .replace(/-+/g, "-")
+    .replace(/^-|-$/g, "");
+}
+
+function nextCustomColor(customViews = []) {
+  return CUSTOM_COLORS[customViews.length % CUSTOM_COLORS.length];
+}
 
 function getWeekKey(date = new Date()) {
   const d = new Date(date);
@@ -59,6 +86,7 @@ async function saveToStorage(state) {
     sessions: state.sessions,
     goals: state.goals,
     categoryTargets: state.categoryTargets,
+    customViews: state.customViews,
   };
   try {
     if (window.electronAPI) {
@@ -89,6 +117,63 @@ export const useStore = create((set, get) => ({
     set((s) => ({
       categoryTargets: { ...s.categoryTargets, [category]: hours },
     }));
+    get().persist();
+  },
+
+  // ── Custom Views ───────────────────────────────────────────────────────────
+  addCustomView: (label, color) => {
+    const trimmedLabel = (label || "").trim();
+    if (!trimmedLabel) return null;
+
+    const slug = slugifyViewName(trimmedLabel);
+    if (!slug) return null;
+
+    const existingKeys = new Set([
+      "courses",
+      "passive",
+      "personal",
+      "work",
+      "health",
+      ...get().customViews.map((v) => v.key),
+    ]);
+
+    let key = `custom-${slug}`;
+    let suffix = 2;
+    while (existingKeys.has(key)) {
+      key = `custom-${slug}-${suffix}`;
+      suffix += 1;
+    }
+
+    const newView = {
+      id: uid(),
+      key,
+      label: trimmedLabel,
+      color: color || nextCustomColor(get().customViews),
+      createdAt: new Date().toISOString(),
+    };
+
+    set((s) => ({
+      customViews: [...s.customViews, newView],
+      categoryTargets: {
+        ...s.categoryTargets,
+        [newView.key]: 5,
+      },
+    }));
+    get().persist();
+    return newView;
+  },
+
+  removeCustomView: (key) => {
+    set((s) => {
+      const nextTargets = { ...s.categoryTargets };
+      delete nextTargets[key];
+
+      return {
+        customViews: s.customViews.filter((v) => v.key !== key),
+        sessions: s.sessions.filter((session) => session.category !== key),
+        categoryTargets: nextTargets,
+      };
+    });
     get().persist();
   },
 
@@ -274,7 +359,9 @@ export const useStore = create((set, get) => ({
         p.id === projectId
           ? {
               ...p,
-              milestones: (p.milestones || []).filter((m) => m.id !== milestoneId),
+              milestones: (p.milestones || []).filter(
+                (m) => m.id !== milestoneId,
+              ),
             }
           : p,
       ),

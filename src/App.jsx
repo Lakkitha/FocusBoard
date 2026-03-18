@@ -9,15 +9,24 @@ import PersonalProjects from "./views/PersonalProjects";
 import LogSession from "./views/LogSession";
 import Goals from "./views/Goals";
 import AIChat from "./views/AIChat";
+import CustomView from "./views/CustomView";
 
 export default function App() {
   const init = useStore((s) => s.init);
   const initialized = useStore((s) => s.initialized);
+  const customViews = useStore((s) => s.customViews);
   const [view, setView] = useState(VIEWS.DASHBOARD);
 
   useEffect(() => {
     init();
   }, [init]);
+
+  useEffect(() => {
+    if (!view.startsWith("custom-")) return;
+    if (!customViews.some((item) => item.key === view)) {
+      setView(VIEWS.DASHBOARD);
+    }
+  }, [customViews, view]);
 
   if (!initialized) {
     return (
@@ -47,6 +56,9 @@ export default function App() {
       case VIEWS.AI:
         return <AIChat />;
       default:
+        if (customViews.some((item) => item.key === view)) {
+          return <CustomView viewKey={view} onNavigate={setView} />;
+        }
         return <Dashboard onNavigate={setView} />;
     }
   };

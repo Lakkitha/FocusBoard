@@ -11,25 +11,7 @@ import {
   Briefcase,
 } from "lucide-react";
 import { VIEWS } from "../constants";
-
-const CATEGORIES = [
-  { key: "courses", label: "Courses & Certs", color: "#7c6af7" },
-  { key: "passive", label: "Passive Income", color: "#2dd4bf" },
-  { key: "personal", label: "Personal Projects", color: "#f472b6" },
-  { key: "work", label: "Job / Main Work", color: "#4fa5ff" },
-  { key: "health", label: "Health & Fitness", color: "#4ade80" },
-];
-
-// Map session type + refId → category key
-function sessionCategory(session, courses, projects) {
-  if (session.category) return session.category;
-  if (session.type === "course") return "courses";
-  if (session.type === "project") return "passive";
-  if (session.type === "personal") return "personal";
-  if (session.type === "work") return "work";
-  if (session.type === "health") return "health";
-  return null;
-}
+import { getTrackedCategories, getSessionCategoryKey } from "../viewConfig";
 
 const CustomTooltip = ({ active, payload }) => {
   if (active && payload && payload.length) {
@@ -85,33 +67,40 @@ export default function Dashboard({ onNavigate }) {
   const courses = useStore((s) => s.courses);
   const projects = useStore((s) => s.projects);
   const personalProjects = useStore((s) => s.personalProjects);
+  const customViews = useStore((s) => s.customViews);
   const categoryTargets = useStore((s) => s.categoryTargets);
   const goals = useStore((s) => s.goals);
   const setCategoryTarget = useStore((s) => s.setCategoryTarget);
 
   const [editTargets, setEditTargets] = useState(false);
   const [draftTargets, setDraftTargets] = useState({});
+  const categories = useMemo(
+    () => getTrackedCategories(customViews),
+    [customViews],
+  );
 
   // Minutes per category — all time
   const actualMinutes = useMemo(() => {
-    const map = { courses: 0, passive: 0, personal: 0, work: 0, health: 0 };
+    const map = categories.reduce((acc, cat) => {
+      acc[cat.key] = 0;
+      return acc;
+    }, {});
+
     for (const s of sessions) {
-      const cat = sessionCategory(s, courses, projects);
+      const cat = getSessionCategoryKey(s);
       if (cat && map[cat] !== undefined) map[cat] += s.minutes || 0;
     }
     return map;
-  }, [sessions, courses, projects]);
+  }, [sessions, categories]);
 
   // Target minutes per category
   const targetMinutes = useMemo(
-    () => ({
-      courses: (categoryTargets.courses || 0) * 60,
-      passive: (categoryTargets.passive || 0) * 60,
-      personal: (categoryTargets.personal || 0) * 60,
-      work: (categoryTargets.work || 0) * 60,
-      health: (categoryTargets.health || 0) * 60,
-    }),
-    [categoryTargets],
+    () =>
+      categories.reduce((acc, cat) => {
+        acc[cat.key] = (categoryTargets[cat.key] || 0) * 60;
+        return acc;
+      }, {}),
+    [categoryTargets, categories],
   );
 
   const totalActual = Object.values(actualMinutes).reduce((a, b) => a + b, 0);
@@ -119,7 +108,7 @@ export default function Dashboard({ onNavigate }) {
 
   // Donut data – actual hours; fallback to target if nothing logged yet
   const donutData = useMemo(() => {
-    const data = CATEGORIES.map((cat) => ({
+    const data = categories.map((cat) => ({
       name: cat.label,
       value: actualMinutes[cat.key] || 0,
       color: cat.color,
@@ -127,7 +116,7 @@ export default function Dashboard({ onNavigate }) {
     }));
     const hasAny = data.some((d) => d.value > 0);
     if (!hasAny) {
-      return CATEGORIES.map((cat) => ({
+      return categories.map((cat) => ({
         name: cat.label,
         value: targetMinutes[cat.key] || 1,
         color: `${cat.color}55`,
@@ -136,7 +125,7 @@ export default function Dashboard({ onNavigate }) {
       }));
     }
     return data.filter((d) => d.value > 0);
-  }, [actualMinutes, targetMinutes]);
+  }, [actualMinutes, targetMinutes, categories]);
 
   // This week's goals
   const weekKey = getWeekKey();
@@ -201,7 +190,7 @@ export default function Dashboard({ onNavigate }) {
             Weekly Hour Targets
           </h3>
           <div className="grid grid-cols-2 sm:grid-cols-5 gap-4">
-            {CATEGORIES.map((cat) => (
+            {categories.map((cat) => (
               <div key={cat.key}>
                 <label className="label" style={{ color: cat.color }}>
                   {cat.label}
@@ -238,7 +227,7 @@ export default function Dashboard({ onNavigate }) {
 
       {/* Summary strip */}
       <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
-        {CATEGORIES.map((cat) => {
+        {categories.map((cat) => {
           const actual = actualMinutes[cat.key];
           const pct = totalActual > 0 ? (actual / totalActual) * 100 : 0;
           return (
@@ -310,7 +299,7 @@ export default function Dashboard({ onNavigate }) {
 
             {/* Legend */}
             <div className="flex-1 space-y-3 w-full">
-              {CATEGORIES.map((cat) => {
+              {categories.map((cat) => {
                 const actual = actualMinutes[cat.key];
                 const pct = totalActual > 0 ? (actual / totalActual) * 100 : 0;
                 return (
