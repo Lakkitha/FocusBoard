@@ -5,5 +5,6 @@ export const VIEWS = {
   PERSONAL: "personal",
   LOG_SESSION: "log",
   GOALS: "goals",
+  LOCKED_IN: "locked-in",
   AI: "ai",
 };
