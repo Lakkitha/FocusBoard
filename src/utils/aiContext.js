@@ -33,6 +33,7 @@ function summarizeSessions(sessions, coursesById, projectsById) {
     totalMinutes: 0,
     byCourse: new Map(),
     byProject: new Map(),
+    byCustom: new Map(),
   };
 
   for (const session of sessions) {
@@ -49,6 +50,18 @@ function summarizeSessions(sessions, coursesById, projectsById) {
     if (session.type === "project") {
       const title = projectsById.get(session.refId)?.name || "Unnamed Project";
       totals.byProject.set(title, (totals.byProject.get(title) || 0) + minutes);
+    }
+
+    if (
+      session.category &&
+      !["courses", "passive", "work", "health", "personal"].includes(
+        session.category,
+      )
+    ) {
+      totals.byCustom.set(
+        session.category,
+        (totals.byCustom.get(session.category) || 0) + minutes,
+      );
     }
   }
 
@@ -75,6 +88,8 @@ export function generateAIContext(storeSnapshot = {}) {
   const sessions = storeSnapshot.sessions || [];
   const goals = storeSnapshot.goals || [];
   const lockedInByDate = storeSnapshot.lockedInByDate || {};
+  const customViews = storeSnapshot.customViews || [];
+  const categoryTargets = storeSnapshot.categoryTargets || {};
 
   const coursesById = new Map(courses.map((c) => [c.id, c]));
   const projectsById = new Map(projects.map((p) => [p.id, p]));
@@ -141,12 +156,24 @@ export function generateAIContext(storeSnapshot = {}) {
         .join("\n")
     : "Active Project: None currently in progress.";
 
+  const customLines = customViews.length
+    ? customViews
+        .map((view) => {
+          const loggedMinutes = sessionSummary.byCustom.get(view.key) || 0;
+          const targetHours = Number(categoryTargets[view.key] || 0);
+          return `User has a custom category called '${view.label}'. They have logged ${formatHours(loggedMinutes)} hours this week against a target of ${targetHours} hours.`;
+        })
+        .join("\n")
+    : "User has no custom categories.";
+
   return [
     `Locked In: Over the last 7 days, the user had ${fullDays} fully locked in days, and ${partialDays} partial days.`,
     `Sessions: They logged a total of ${formatHours(sessionSummary.totalMinutes)} hours. ${topBreakdown(sessionSummary.byCourse, "Course")} ${topBreakdown(sessionSummary.byProject, "Project")}`,
     "Courses/Projects Status:",
     courseLines,
     projectLines,
+    "Custom Views/Categories:",
+    customLines,
     `Goals: They completed ${weeklyGoalsDone} out of ${weeklyGoals.length} weekly goals.`,
   ].join("\n");
 }

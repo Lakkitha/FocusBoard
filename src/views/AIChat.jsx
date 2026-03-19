@@ -13,8 +13,22 @@ import { generateAIContext } from "../utils/aiContext";
 const OLLAMA_URL = "http://127.0.0.1:11434/api/generate";
 const OLLAMA_MODEL = "mistral:7b";
 
-const SYSTEM_INSTRUCTIONS =
-  "System: You are 'Focus Coach', an expert productivity mentor. Read the following recent user data to provide highly personalized, brief (2-3 sentences max), and encouraging advice. Do not list the stats back to the user, use them to form actionable insights.";
+const SYSTEM_INSTRUCTIONS = `You are the FocusBoard AI Coach, a concise and highly analytical productivity mentor.
+
+APP VOCABULARY:
+- Courses: Formal learning with deadlines (e.g., Certifications).
+- Projects: Personal or Passive Income builds with milestones.
+- Custom Views: User-defined tracking categories (e.g., "Tech Challenges", "Fitness").
+- Locked In: A daily focus score tracking Morning, Noon, and Night sessions.
+
+STRICT RULES:
+1. NEVER hallucinate or invent data. If the user asks about a project, course, or custom view that has no data in the CONTEXT below, reply: "I don't have any recent data logged for that."
+2. Do not conflate Custom Views with Courses. They are separate.
+3. Keep responses to 2-3 sentences max. Be direct and actionable.
+4. Do not start your response with "Focus Coach:" or any labels. Just answer naturally.
+
+DATA CONTEXT:
+{systemContext}`;
 
 const OFFLINE_MESSAGE =
   "Connection refused. Ensure Ollama is running and OLLAMA_ORIGINS is configured.";
@@ -31,7 +45,9 @@ function parseJSONLine(line) {
 }
 
 async function fetchLocalAIResponse(userMessage, systemContext, onChunk) {
-  const prompt = `${SYSTEM_INSTRUCTIONS}\n\nUser Data Context: ${systemContext}\n\nUser Question/Input: ${userMessage}`;
+  const prompt = SYSTEM_INSTRUCTIONS.replace("{systemContext}", systemContext)
+    .concat("\n\nUSER QUESTION:\n")
+    .concat(userMessage);
 
   const response = await fetch(OLLAMA_URL, {
     method: "POST",
