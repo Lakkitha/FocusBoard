@@ -37,11 +37,11 @@ export default function AIChat() {
           <span className="badge bg-brand-amber/10 text-brand-amber text-xs px-3 py-1">
             Coming Soon
           </span>
-          <p className="text-[11px] text-surface-500">
+          {/* <p className="text-[11px] text-surface-500">
             Add your Anthropic API key in settings to enable AI features.
-          </p>
+          </p> */}
         </div>
-      </div>
+      </div> 
     </div>
   )
 }
