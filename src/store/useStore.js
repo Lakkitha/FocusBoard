@@ -28,6 +28,9 @@ const DEFAULT_STATE = {
 
   // Custom sidebar/time-tracking views [{ id, key, label, color, createdAt }]
   customViews: [],
+
+  // Locked In by date { 'YYYY-MM-DD': { morning: boolean, noon: boolean, night: boolean } }
+  lockedInByDate: {},
 };
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
@@ -64,6 +67,28 @@ function getWeekKey(date = new Date()) {
   return d.toISOString().slice(0, 10);
 }
 
+function normalizeLockedInDate(date) {
+  if (!date) return new Date().toISOString().slice(0, 10);
+  return String(date).slice(0, 10);
+}
+
+function normalizeLockedInDay(day = {}) {
+  return {
+    morning: Boolean(day.morning),
+    noon: Boolean(day.noon),
+    night: Boolean(day.night),
+  };
+}
+
+export function getLockedInScore(day = {}) {
+  const normalized = normalizeLockedInDay(day);
+  const checks =
+    Number(normalized.morning) +
+    Number(normalized.noon) +
+    Number(normalized.night);
+  return checks / 3;
+}
+
 // ─── Persistence ─────────────────────────────────────────────────────────────
 async function loadFromStorage() {
   try {
@@ -87,6 +112,7 @@ async function saveToStorage(state) {
     goals: state.goals,
     categoryTargets: state.categoryTargets,
     customViews: state.customViews,
+    lockedInByDate: state.lockedInByDate,
   };
   try {
     if (window.electronAPI) {
@@ -415,6 +441,55 @@ export const useStore = create((set, get) => ({
     set((s) => ({
       goals: s.goals.map((g) => (g.id === id ? { ...g, text } : g)),
     }));
+    get().persist();
+  },
+
+  // ── Locked In ──────────────────────────────────────────────────────────────
+  setLockedInPeriod: (date, period, value) => {
+    if (!["morning", "noon", "night"].includes(period)) return;
+
+    const dateKey = normalizeLockedInDate(date);
+
+    set((s) => {
+      const current = normalizeLockedInDay(s.lockedInByDate[dateKey]);
+      const nextValue =
+        typeof value === "boolean" ? value : !Boolean(current[period]);
+
+      return {
+        lockedInByDate: {
+          ...s.lockedInByDate,
+          [dateKey]: {
+            ...current,
+            [period]: nextValue,
+          },
+        },
+      };
+    });
+
+    get().persist();
+  },
+
+  setLockedInDay: (date, updates = {}) => {
+    const dateKey = normalizeLockedInDate(date);
+    set((s) => {
+      const current = normalizeLockedInDay(s.lockedInByDate[dateKey]);
+      return {
+        lockedInByDate: {
+          ...s.lockedInByDate,
+          [dateKey]: normalizeLockedInDay({ ...current, ...updates }),
+        },
+      };
+    });
+    get().persist();
+  },
+
+  deleteLockedInDay: (date) => {
+    const dateKey = normalizeLockedInDate(date);
+    set((s) => {
+      const next = { ...s.lockedInByDate };
+      delete next[dateKey];
+      return { lockedInByDate: next };
+    });
     get().persist();
   },
 }));

@@ -8,6 +8,7 @@ import PassiveIncome from "./views/PassiveIncome";
 import PersonalProjects from "./views/PersonalProjects";
 import LogSession from "./views/LogSession";
 import Goals from "./views/Goals";
+import LockedIn from "./views/LockedIn";
 import AIChat from "./views/AIChat";
 import CustomView from "./views/CustomView";
 
@@ -53,6 +54,8 @@ export default function App() {
         return <LogSession />;
       case VIEWS.GOALS:
         return <Goals />;
+      case VIEWS.LOCKED_IN:
+        return <LockedIn />;
       case VIEWS.AI:
         return <AIChat />;
       default:

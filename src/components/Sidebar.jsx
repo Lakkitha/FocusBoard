@@ -6,6 +6,7 @@ import {
   Timer,
   CheckSquare,
   Sparkles,
+  ShieldCheck,
   Target,
   Plus,
   X,
@@ -22,6 +23,7 @@ const NAV_ITEMS = [
   { view: VIEWS.PERSONAL, label: "Personal Projects", icon: Briefcase },
   { view: VIEWS.LOG_SESSION, label: "Log Session", icon: Timer },
   { view: VIEWS.GOALS, label: "Weekly Goals", icon: CheckSquare },
+  { view: VIEWS.LOCKED_IN, label: "Locked In", icon: ShieldCheck },
 ];
 
 const AI_ITEM = { view: VIEWS.AI, label: "AI Assistant", icon: Sparkles };
