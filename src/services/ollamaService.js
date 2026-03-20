@@ -8,7 +8,17 @@ export const OLLAMA_OFFLINE_MESSAGE =
 
 function buildSystemPrompt(storeSnapshot) {
   const snapshotJson = JSON.stringify(storeSnapshot || {}, null, 2);
-  return `You are FocusBoard's personal productivity AI assistant.\n\n## LIVE USER DATA (use only this for any stats)\n${snapshotJson}\n\nRules:\n- Never estimate or use training knowledge for any numbers.\n- If a stat is not in the data above, say you don't have that information.\n- Keep responses concise, motivating, and coach-like.\n- Use comparisons (this week vs last week) when relevant.\n- When answering weekly questions, always name the week ranges from weekRanges.thisWeek and weekRanges.lastWeek.`;
+  return `You are FocusBoard's personal productivity AI assistant.\n\n## LIVE USER DATA (use only this for any stats)\n${snapshotJson}\n\nRules:\n- Never estimate or use training knowledge for any numbers.\n- If a stat is not in the data above, say you don't have that information.\n- Keep responses concise, motivating, and coach-like.\n- Use comparisons (this week vs last week) when relevant.\n- When answering weekly questions, always name the week ranges from weekRanges.thisWeek and weekRanges.lastWeek.\n- When asked about streaks, consistency, or habits, reference streak.current, streak.best, and streak.todayLogged from the data and be specific (e.g. how close to the best).\n- For questions about this week's focus, priorities, or what to work on, reference weeklyBudget. Use weeklyBudget.aiSummary first, then add specific category details and mention how many days are left.\n\nYou have access to the conversation history above. Use it to maintain continuity. If the user refers to something mentioned earlier in this conversation, reference it directly. Do not re-explain things you already covered unless asked. If the conversation history is empty, treat this as a fresh start.`;
+}
+
+function buildTitleSystemPrompt() {
+  return "You generate short 4-5 word conversation titles. Reply with ONLY the title, no punctuation, no quotes.";
+}
+
+function fallbackTitle(text = "") {
+  const trimmed = text.trim();
+  if (trimmed.length <= 30) return trimmed || "New conversation";
+  return `${trimmed.slice(0, 30)}...`;
 }
 
 function buildGeneratePrompt(systemPrompt, conversationHistory, userMessage) {
@@ -155,5 +165,52 @@ export async function chatWithOllama({
       return { text: OLLAMA_OFFLINE_MESSAGE, error: "offline" };
     }
     throw error;
+  }
+}
+
+export async function generateThreadTitle(firstUserMessage = "") {
+  try {
+    const response = await fetch(CHAT_ENDPOINT, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        model: OLLAMA_MODEL,
+        messages: [
+          { role: "system", content: buildTitleSystemPrompt() },
+          { role: "user", content: firstUserMessage },
+        ],
+        stream: false,
+      }),
+    });
+
+    let activeResponse = response;
+    let usedGenerate = false;
+
+    if (!response.ok && response.status === 404) {
+      const prompt = `${buildTitleSystemPrompt()}\n\nUSER:\n${firstUserMessage}`;
+      activeResponse = await fetch(GENERATE_ENDPOINT, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          model: OLLAMA_MODEL,
+          prompt,
+          stream: false,
+        }),
+      });
+      usedGenerate = true;
+    }
+
+    if (!activeResponse.ok) {
+      return fallbackTitle(firstUserMessage);
+    }
+
+    const data = await activeResponse.json();
+    const content = usedGenerate
+      ? data?.response
+      : data?.message?.content || data?.response;
+
+    return String(content || "").trim() || fallbackTitle(firstUserMessage);
+  } catch {
+    return fallbackTitle(firstUserMessage);
   }
 }

@@ -31,6 +31,10 @@ const DEFAULT_STATE = {
 
   // Locked In by date { 'YYYY-MM-DD': { morning: boolean, noon: boolean, night: boolean } }
   lockedInByDate: {},
+
+  // AI chat threads
+  chatThreads: [],
+  activeChatThreadId: null,
 };
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
@@ -63,7 +67,9 @@ function nextCustomColor(customViews = []) {
 function getWeekKey(date = new Date()) {
   const d = new Date(date);
   d.setHours(0, 0, 0, 0);
-  d.setDate(d.getDate() - d.getDay()); // start of week (Sunday)
+  const day = d.getDay();
+  const diff = (day + 6) % 7; // start of week (Monday)
+  d.setDate(d.getDate() - diff);
   return d.toISOString().slice(0, 10);
 }
 
@@ -113,6 +119,8 @@ async function saveToStorage(state) {
     categoryTargets: state.categoryTargets,
     customViews: state.customViews,
     lockedInByDate: state.lockedInByDate,
+    chatThreads: state.chatThreads,
+    activeChatThreadId: state.activeChatThreadId,
   };
   try {
     if (window.electronAPI) {
@@ -489,6 +497,105 @@ export const useStore = create((set, get) => ({
       const next = { ...s.lockedInByDate };
       delete next[dateKey];
       return { lockedInByDate: next };
+    });
+    get().persist();
+  },
+
+  // ── AI Chat ───────────────────────────────────────────────────────────────
+  createChatThread: () => {
+    const id =
+      globalThis.crypto?.randomUUID?.() || Math.random().toString(36).slice(2);
+    const now = new Date().toISOString();
+    const newThread = {
+      id,
+      title: "New conversation",
+      createdAt: now,
+      updatedAt: now,
+      messages: [],
+    };
+
+    set((s) => {
+      const trimmedThreads = s.chatThreads.slice(0, 49);
+      return {
+        chatThreads: [newThread, ...trimmedThreads],
+        activeChatThreadId: id,
+      };
+    });
+    get().persist();
+    return id;
+  },
+
+  setActiveChatThread: (id) => {
+    set({ activeChatThreadId: id });
+    get().persist();
+  },
+
+  appendChatMessage: (threadId, message) => {
+    set((s) => {
+      const nextThreads = s.chatThreads.map((thread) => {
+        if (thread.id !== threadId) return thread;
+
+        const timestamp = new Date().toISOString();
+        const nextMessages = [
+          ...thread.messages,
+          {
+            role: message.role,
+            content: message.content,
+            timestamp,
+          },
+        ];
+
+        if (nextMessages.length > 100) {
+          const trimmed = nextMessages.slice(-99);
+          trimmed.unshift({
+            role: "system-notice",
+            content: "Earlier messages were removed to save space.",
+            timestamp,
+          });
+          return {
+            ...thread,
+            messages: trimmed,
+            updatedAt: timestamp,
+          };
+        }
+
+        return {
+          ...thread,
+          messages: nextMessages,
+          updatedAt: timestamp,
+        };
+      });
+
+      return { chatThreads: nextThreads };
+    });
+    get().persist();
+  },
+
+  updateChatThreadTitle: (threadId, title) => {
+    set((s) => ({
+      chatThreads: s.chatThreads.map((thread) =>
+        thread.id === threadId
+          ? { ...thread, title, updatedAt: new Date().toISOString() }
+          : thread,
+      ),
+    }));
+    get().persist();
+  },
+
+  deleteChatThread: (threadId) => {
+    set((s) => {
+      const remaining = s.chatThreads.filter(
+        (thread) => thread.id !== threadId,
+      );
+      const nextActive =
+        s.activeChatThreadId === threadId
+          ? remaining[0]?.id || null
+          : s.activeChatThreadId;
+
+      return {
+        chatThreads: remaining,
+        activeChatThreadId: nextActive,
+      };
     });
     get().persist();
   },
