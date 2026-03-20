@@ -1,300 +1,258 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
+import ReactMarkdown from "react-markdown";
 import {
   Sparkles,
   Send,
   Loader2,
-  Bot,
-  User,
   AlertTriangle,
+  BarChart3,
 } from "lucide-react";
 import { useStore } from "../store/useStore";
-import { generateAIContext } from "../utils/aiContext";
+import { buildAIContext } from "../utils/buildAIContext";
+import { chatWithOllama } from "../services/ollamaService";
 
-const OLLAMA_URL = "http://127.0.0.1:11434/api/generate";
-const OLLAMA_MODEL = "mistral:7b";
+const SUGGESTED_PROMPTS = [
+  "How many hours on Passive Income this week?",
+  "Compare my focus this week vs last week",
+  "What should I focus on today?",
+  "Give me a weekly summary",
+];
 
-const SYSTEM_INSTRUCTIONS = `You are the FocusBoard AI Coach, a concise and highly analytical productivity mentor.
+const OFFLINE_BANNER =
+  "Ollama isn't running. Open a terminal and run: ollama serve - then try again.";
 
-APP VOCABULARY:
-- Courses: Formal learning with deadlines (e.g., Certifications).
-- Projects: Personal or Passive Income builds with milestones.
-- Custom Views: User-defined tracking categories (e.g., "Tech Challenges", "Fitness").
-- Locked In: A daily focus score tracking Morning, Noon, and Night sessions.
-
-STRICT RULES:
-1. NEVER hallucinate or invent data. If the user asks about a project, course, or custom view that has no data in the CONTEXT below, reply: "I don't have any recent data logged for that."
-2. Do not conflate Custom Views with Courses. They are separate.
-3. Keep responses to 2-3 sentences max. Be direct and actionable.
-4. Do not start your response with "Focus Coach:" or any labels. Just answer naturally.
-
-DATA CONTEXT:
-{systemContext}`;
-
-const OFFLINE_MESSAGE =
-  "Connection refused. Ensure Ollama is running and OLLAMA_ORIGINS is configured.";
-
-const MODEL_NOT_FOUND_MESSAGE =
-  "Model not found. Please run 'ollama run mistral' in your terminal.";
-
-function parseJSONLine(line) {
-  try {
-    return JSON.parse(line);
-  } catch {
-    return null;
-  }
-}
-
-async function fetchLocalAIResponse(userMessage, systemContext, onChunk) {
-  const prompt = SYSTEM_INSTRUCTIONS.replace("{systemContext}", systemContext)
-    .concat("\n\nUSER QUESTION:\n")
-    .concat(userMessage);
-
-  const response = await fetch(OLLAMA_URL, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({
-      model: OLLAMA_MODEL,
-      prompt,
-      stream: true,
-    }),
-  });
-
-  if (!response.ok) {
-    const error = new Error(
-      `Ollama request failed with status ${response.status}`,
-    );
-    error.status = response.status;
-    error.statusText = response.statusText;
-    throw error;
-  }
-
-  if (!response.body) {
-    throw new Error("No response stream returned by Ollama");
-  }
-
-  const reader = response.body.getReader();
-  const decoder = new TextDecoder("utf-8");
-  let buffer = "";
-  let fullText = "";
-
-  while (true) {
-    const { done, value } = await reader.read();
-    if (done) break;
-
-    buffer += decoder.decode(value, { stream: true });
-    const lines = buffer.split("\n");
-    buffer = lines.pop() || "";
-
-    for (const line of lines) {
-      const trimmed = line.trim();
-      if (!trimmed) continue;
-
-      const parsed = parseJSONLine(trimmed);
-      if (!parsed) continue;
-
-      if (parsed.error) {
-        throw new Error(parsed.error);
-      }
-
-      if (parsed.response) {
-        fullText += parsed.response;
-        onChunk(fullText);
-      }
-    }
-  }
-
-  const tail = buffer.trim();
-  if (tail) {
-    const parsedTail = parseJSONLine(tail);
-    if (parsedTail?.response) {
-      fullText += parsedTail.response;
-      onChunk(fullText);
-    }
-  }
-
-  return fullText.trim();
-}
+const WEEKLY_SUMMARY_PROMPT =
+  "Generate a structured weekly review covering: total hours this week by category, week over week comparison for each category, locked in score for the week, goals completion rate, biggest improvement, biggest gap, and one suggested focus for next week. Always mention the week ranges from weekRanges.thisWeek and weekRanges.lastWeek.";
 
 export default function AIChat() {
-  const courses = useStore((s) => s.courses);
-  const projects = useStore((s) => s.projects);
-  const sessions = useStore((s) => s.sessions);
-  const goals = useStore((s) => s.goals);
-  const lockedInByDate = useStore((s) => s.lockedInByDate);
-
   const [messages, setMessages] = useState([
     {
       id: "welcome",
       role: "assistant",
       content:
-        "I'm your local Focus Coach. Ask me anything about your momentum, deadlines, or where to focus next.",
+        "I'm your FocusBoard coach. Ask about your progress, week over week trends, or next focus.",
     },
   ]);
+  const [conversationHistory, setConversationHistory] = useState([]);
   const [input, setInput] = useState("");
-  const [isLoading, setIsLoading] = useState(false);
+  const [isStreaming, setIsStreaming] = useState(false);
+  const [streamingId, setStreamingId] = useState(null);
   const [offlineError, setOfflineError] = useState("");
   const messagesEndRef = useRef(null);
 
-  const aiContext = useMemo(
-    () =>
-      generateAIContext({ courses, projects, sessions, goals, lockedInByDate }),
-    [courses, projects, sessions, goals, lockedInByDate],
-  );
+  const isFirstLoad = conversationHistory.length === 0;
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, [messages]);
+  }, [messages, isStreaming]);
 
-  const sendMessage = async (rawMessage) => {
+  const updateAssistantMessage = (id, content) => {
+    setMessages((prev) =>
+      prev.map((message) =>
+        message.id === id ? { ...message, content } : message,
+      ),
+    );
+  };
+
+  const finalizeAssistantMessage = (id, content) => {
+    setMessages((prev) =>
+      prev.map((message) =>
+        message.id === id
+          ? { ...message, content, isStreaming: false }
+          : message,
+      ),
+    );
+  };
+
+  const sendMessage = async (rawMessage, options = {}) => {
     const userMessage = rawMessage.trim();
-    if (!userMessage || isLoading) return;
+    if (!userMessage || isStreaming) return;
 
     const userId = `user-${Date.now()}`;
-    const assistantId = `assistant-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
+    const assistantId = `assistant-${Date.now()}-${Math.random()
+      .toString(36)
+      .slice(2, 7)}`;
 
     setOfflineError("");
+    setIsStreaming(true);
+    setStreamingId(assistantId);
+
     setMessages((prev) => [
       ...prev,
       { id: userId, role: "user", content: userMessage },
-      { id: assistantId, role: "assistant", content: "" },
+      {
+        id: assistantId,
+        role: "assistant",
+        content: "",
+        variant: options.variant,
+        isStreaming: true,
+      },
     ]);
-    setIsLoading(true);
 
     try {
-      const finalText = await fetchLocalAIResponse(
+      const storeSnapshot = buildAIContext(useStore.getState());
+      const result = await chatWithOllama({
         userMessage,
-        aiContext,
-        (partial) => {
-          setMessages((prev) =>
-            prev.map((m) =>
-              m.id === assistantId ? { ...m, content: partial } : m,
-            ),
-          );
-        },
-      );
+        storeSnapshot,
+        conversationHistory,
+        onChunk: (partial) => updateAssistantMessage(assistantId, partial),
+      });
 
-      if (!finalText) {
-        setMessages((prev) =>
-          prev.map((m) =>
-            m.id === assistantId
-              ? {
-                  ...m,
-                  content:
-                    "I could not generate a response just now. Please try again.",
-                }
-              : m,
-          ),
-        );
+      if (result?.error === "offline") {
+        setOfflineError(OFFLINE_BANNER);
+      }
+
+      const finalText =
+        result?.text ||
+        "I could not generate a response just now. Please try again.";
+
+      finalizeAssistantMessage(assistantId, finalText);
+
+      if (!result?.error) {
+        setConversationHistory((prev) => [
+          ...prev,
+          { role: "user", content: userMessage },
+          { role: "assistant", content: finalText },
+        ]);
       }
     } catch (error) {
-      let errorMessage = OFFLINE_MESSAGE;
-
-      if (error?.status === 404) {
-        errorMessage = MODEL_NOT_FOUND_MESSAGE;
-      } else if (error?.message && !error?.status) {
-        const lower = String(error.message).toLowerCase();
-        if (
-          lower.includes("failed to fetch") ||
-          lower.includes("networkerror")
-        ) {
-          errorMessage = OFFLINE_MESSAGE;
-        }
-      }
-
-      setOfflineError(errorMessage);
-      setMessages((prev) =>
-        prev.map((m) =>
-          m.id === assistantId ? { ...m, content: errorMessage } : m,
-        ),
+      console.error("Ollama chat error:", error);
+      setOfflineError(
+        error?.message
+          ? "Something went wrong. Please try again."
+          : OFFLINE_BANNER,
       );
-      console.error("Ollama Fetch Error:", error?.message, error);
+      finalizeAssistantMessage(
+        assistantId,
+        "I hit a snag. Please try again in a moment.",
+      );
     } finally {
-      setIsLoading(false);
+      setIsStreaming(false);
+      setStreamingId(null);
     }
   };
 
-  const handleSubmit = async (e) => {
-    e.preventDefault();
+  const handleSubmit = async (event) => {
+    event.preventDefault();
     const prompt = input;
     setInput("");
     await sendMessage(prompt);
   };
 
-  const handleWeeklyReview = async () => {
-    await sendMessage(
-      "Generate my weekly review and give me the 2 most important next actions.",
-    );
+  const handleWeeklySummary = async () => {
+    await sendMessage(WEEKLY_SUMMARY_PROMPT, { variant: "summary" });
+  };
+
+  const handleSuggestedPrompt = async (prompt) => {
+    setInput("");
+    await sendMessage(prompt);
   };
 
   return (
-    <div className="p-6 max-w-4xl mx-auto h-full flex flex-col gap-4">
-      <div className="card flex items-start justify-between gap-4">
-        <div className="space-y-1">
-          <div className="inline-flex items-center gap-2 badge bg-brand-purple/15 text-brand-purple">
-            <Sparkles className="w-3.5 h-3.5" />
-            Focus Coach (Local)
+    <div className="h-full flex flex-col">
+      <div className="px-6 pt-6 pb-4 border-b border-surface-700">
+        <div className="flex items-start justify-between gap-4">
+          <div className="space-y-1">
+            <div className="inline-flex items-center gap-2 badge bg-brand-purple/15 text-brand-purple">
+              <Sparkles className="w-3.5 h-3.5" />
+              FocusBoard AI Coach
+            </div>
+            <h1 className="text-xl font-bold text-surface-50">AI Assistant</h1>
+            <p className="text-sm text-surface-300 max-w-2xl">
+              Always grounded in your live data. Ask about progress, compare
+              weeks, or plan next actions.
+            </p>
           </div>
-          <h1 className="text-xl font-bold text-surface-50">
-            Private AI Productivity Coach
-          </h1>
-          <p className="text-sm text-surface-300 max-w-2xl">
-            Your data stays local. This coach uses your last 7 days of
-            FocusBoard activity to generate personalized guidance.
-          </p>
-        </div>
 
-        <button
-          type="button"
-          onClick={handleWeeklyReview}
-          disabled={isLoading}
-          className={`btn-primary whitespace-nowrap flex items-center gap-2 ${isLoading ? "opacity-60 cursor-not-allowed" : ""}`}
-        >
-          {isLoading ? (
-            <Loader2 className="w-4 h-4 animate-spin" />
-          ) : (
-            <Sparkles className="w-4 h-4" />
-          )}
-          Generate Weekly Review
-        </button>
+          <button
+            type="button"
+            onClick={handleWeeklySummary}
+            disabled={isStreaming}
+            className={`btn-primary whitespace-nowrap flex items-center gap-2 ${isStreaming ? "opacity-60 cursor-not-allowed" : ""}`}
+          >
+            {isStreaming ? (
+              <Loader2 className="w-4 h-4 animate-spin" />
+            ) : (
+              <BarChart3 className="w-4 h-4" />
+            )}
+            Weekly Summary
+          </button>
+        </div>
       </div>
 
       {offlineError && (
-        <div className="card border-red-500/30 bg-red-500/10 text-red-300 text-sm flex items-start gap-2.5">
+        <div className="mx-6 mt-4 card border-red-500/30 bg-red-500/10 text-red-300 text-sm flex items-start gap-2.5">
           <AlertTriangle className="w-4 h-4 mt-0.5 flex-shrink-0" />
           <span>{offlineError}</span>
         </div>
       )}
 
-      <div className="card flex-1 min-h-[420px] max-h-[62vh] overflow-y-auto space-y-3">
+      <div className="flex-1 overflow-y-auto px-6 py-4 space-y-4">
         {messages.map((message) => {
           const isUser = message.role === "user";
+          const isSummary = message.variant === "summary";
+          const isTyping =
+            message.id === streamingId && isStreaming && !message.content;
 
           return (
             <div
               key={message.id}
-              className={`flex items-start gap-2.5 ${isUser ? "justify-end" : "justify-start"}`}
+              className={`flex items-start gap-3 ${
+                isUser ? "justify-end" : "justify-start"
+              }`}
             >
               {!isUser && (
-                <div className="w-8 h-8 rounded-full bg-brand-purple/15 border border-brand-purple/30 flex items-center justify-center flex-shrink-0">
-                  <Bot className="w-4 h-4 text-brand-purple" />
+                <div className="w-8 h-8 rounded-full bg-brand-purple/15 border border-brand-purple/30 flex items-center justify-center flex-shrink-0 text-xs font-semibold text-brand-purple">
+                  FB
                 </div>
               )}
 
               <div
-                className={`max-w-[78%] rounded-xl px-3.5 py-2.5 text-sm leading-relaxed whitespace-pre-wrap ${
+                className={`max-w-[78%] rounded-xl px-4 py-3 text-sm leading-relaxed whitespace-pre-wrap ${
                   isUser
                     ? "bg-brand-purple text-white rounded-tr-md"
-                    : "bg-surface-600 text-surface-100 border border-surface-500 rounded-tl-md"
+                    : isSummary
+                      ? "bg-surface-700 text-surface-100 border border-brand-blue/30 rounded-tl-md"
+                      : "bg-surface-600 text-surface-100 border border-surface-500 rounded-tl-md"
                 }`}
               >
-                {message.content || (isLoading && !isUser ? "Thinking..." : "")}
+                {isSummary && (
+                  <div className="flex items-center gap-2 text-xs uppercase tracking-wide text-brand-blue mb-2">
+                    <BarChart3 className="w-3.5 h-3.5" />
+                    Weekly Summary
+                  </div>
+                )}
+                {isUser ? (
+                  message.content
+                ) : isTyping ? (
+                  <div className="flex items-center gap-1">
+                    <span className="w-2 h-2 rounded-full bg-surface-200 animate-pulse" />
+                    <span className="w-2 h-2 rounded-full bg-surface-200 animate-pulse" />
+                    <span className="w-2 h-2 rounded-full bg-surface-200 animate-pulse" />
+                  </div>
+                ) : (
+                  <ReactMarkdown
+                    components={{
+                      p: ({ children }) => (
+                        <p className="mb-2 last:mb-0">{children}</p>
+                      ),
+                      ul: ({ children }) => (
+                        <ul className="list-disc pl-4 space-y-1">{children}</ul>
+                      ),
+                      ol: ({ children }) => (
+                        <ol className="list-decimal pl-4 space-y-1">
+                          {children}
+                        </ol>
+                      ),
+                      strong: ({ children }) => (
+                        <strong className="text-surface-50">{children}</strong>
+                      ),
+                    }}
+                  >
+                    {message.content}
+                  </ReactMarkdown>
+                )}
               </div>
-
-              {isUser && (
-                <div className="w-8 h-8 rounded-full bg-brand-blue/20 border border-brand-blue/30 flex items-center justify-center flex-shrink-0">
-                  <User className="w-4 h-4 text-brand-blue" />
-                </div>
-              )}
             </div>
           );
         })}
@@ -302,30 +260,59 @@ export default function AIChat() {
         <div ref={messagesEndRef} />
       </div>
 
-      <form onSubmit={handleSubmit} className="card p-3 space-y-2">
-        <label className="label mb-0">Ask your coach</label>
-        <div className="flex gap-2">
-          <input
-            className="input"
-            placeholder="Am I on track for my course deadline?"
-            value={input}
-            onChange={(e) => setInput(e.target.value)}
-            disabled={isLoading}
-          />
+      <div className="border-t border-surface-700 px-6 py-4 bg-surface-900">
+        {isFirstLoad && (
+          <div className="mb-3 flex flex-wrap gap-2">
+            {SUGGESTED_PROMPTS.map((prompt) => (
+              <button
+                key={prompt}
+                type="button"
+                onClick={() => handleSuggestedPrompt(prompt)}
+                className="btn-ghost border border-surface-500 text-surface-200"
+              >
+                {prompt}
+              </button>
+            ))}
+          </div>
+        )}
+
+        <form onSubmit={handleSubmit} className="flex items-end gap-2">
+          <div className="flex-1">
+            <label className="label mb-2">Ask your coach</label>
+            <textarea
+              className="input min-h-[70px] resize-none"
+              placeholder="Ask about your week, goals, or focus plan..."
+              value={input}
+              onChange={(event) => setInput(event.target.value)}
+              onKeyDown={(event) => {
+                if (event.key === "Enter" && !event.shiftKey) {
+                  event.preventDefault();
+                  if (!input.trim()) return;
+                  handleSubmit(event);
+                }
+              }}
+              disabled={isStreaming}
+            />
+          </div>
+
           <button
             type="submit"
-            disabled={isLoading || !input.trim()}
-            className={`btn-primary flex items-center gap-2 ${isLoading || !input.trim() ? "opacity-50 cursor-not-allowed" : ""}`}
+            disabled={isStreaming || !input.trim()}
+            className={`btn-primary flex items-center gap-2 ${
+              isStreaming || !input.trim()
+                ? "opacity-50 cursor-not-allowed"
+                : ""
+            }`}
           >
-            {isLoading ? (
+            {isStreaming ? (
               <Loader2 className="w-4 h-4 animate-spin" />
             ) : (
               <Send className="w-4 h-4" />
             )}
             Send
           </button>
-        </div>
-      </form>
+        </form>
+      </div>
     </div>
   );
 }
