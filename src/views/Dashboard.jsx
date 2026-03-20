@@ -62,6 +62,25 @@ const renderCustomLabel = ({
   );
 };
 
+function toStartOfDay(input) {
+  const date = new Date(input);
+  date.setHours(0, 0, 0, 0);
+  return date;
+}
+
+function getWeekRangeFromKey(weekKey) {
+  const start = toStartOfDay(weekKey);
+  const end = new Date(start);
+  end.setDate(end.getDate() + 6);
+  return { start, end };
+}
+
+function isDateInRange(dateStr, range) {
+  if (!dateStr) return false;
+  const date = toStartOfDay(dateStr);
+  return date >= range.start && date <= range.end;
+}
+
 export default function Dashboard({ onNavigate }) {
   const sessions = useStore((s) => s.sessions);
   const courses = useStore((s) => s.courses);
@@ -79,19 +98,23 @@ export default function Dashboard({ onNavigate }) {
     [customViews],
   );
 
-  // Minutes per category — all time
-  const actualMinutes = useMemo(() => {
+  const weekKey = getWeekKey();
+  const weekRange = useMemo(() => getWeekRangeFromKey(weekKey), [weekKey]);
+
+  // Minutes per category — this week
+  const weeklyMinutes = useMemo(() => {
     const map = categories.reduce((acc, cat) => {
       acc[cat.key] = 0;
       return acc;
     }, {});
 
     for (const s of sessions) {
+      if (!isDateInRange(s.date, weekRange)) continue;
       const cat = getSessionCategoryKey(s);
       if (cat && map[cat] !== undefined) map[cat] += s.minutes || 0;
     }
     return map;
-  }, [sessions, categories]);
+  }, [sessions, categories, weekRange]);
 
   // Target minutes per category
   const targetMinutes = useMemo(
@@ -103,14 +126,14 @@ export default function Dashboard({ onNavigate }) {
     [categoryTargets, categories],
   );
 
-  const totalActual = Object.values(actualMinutes).reduce((a, b) => a + b, 0);
+  const totalActual = Object.values(weeklyMinutes).reduce((a, b) => a + b, 0);
   const totalTarget = Object.values(targetMinutes).reduce((a, b) => a + b, 0);
 
-  // Donut data – actual hours; fallback to target if nothing logged yet
+  // Donut data – this week's hours; fallback to target if nothing logged yet
   const donutData = useMemo(() => {
     const data = categories.map((cat) => ({
       name: cat.label,
-      value: actualMinutes[cat.key] || 0,
+      value: weeklyMinutes[cat.key] || 0,
       color: cat.color,
       key: cat.key,
     }));
@@ -125,10 +148,9 @@ export default function Dashboard({ onNavigate }) {
       }));
     }
     return data.filter((d) => d.value > 0);
-  }, [actualMinutes, targetMinutes, categories]);
+  }, [weeklyMinutes, targetMinutes, categories]);
 
   // This week's goals
-  const weekKey = getWeekKey();
   const weekGoals = useMemo(
     () => goals.filter((g) => g.weekKey === weekKey),
     [goals, weekKey],
@@ -228,8 +250,9 @@ export default function Dashboard({ onNavigate }) {
       {/* Summary strip */}
       <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
         {categories.map((cat) => {
-          const actual = actualMinutes[cat.key];
-          const pct = totalActual > 0 ? (actual / totalActual) * 100 : 0;
+          const actual = weeklyMinutes[cat.key];
+          const target = targetMinutes[cat.key] || 0;
+          const pct = target > 0 ? Math.min(100, (actual / target) * 100) : 0;
           return (
             <div key={cat.key} className="card space-y-2.5">
               <div className="flex items-center justify-between">
@@ -262,7 +285,9 @@ export default function Dashboard({ onNavigate }) {
         {/* Donut Chart */}
         <div className="lg:col-span-3 card flex flex-col">
           <div className="flex items-center justify-between mb-4">
-            <h2 className="font-semibold text-surface-50">All-Time Activity</h2>
+            <h2 className="font-semibold text-surface-50">
+              This Week Activity
+            </h2>
             <div className="flex flex-col items-end">
               <span className="text-xl font-bold text-surface-50">
                 {(totalActual / 60).toFixed(1)}h
@@ -300,7 +325,7 @@ export default function Dashboard({ onNavigate }) {
             {/* Legend */}
             <div className="flex-1 space-y-3 w-full">
               {categories.map((cat) => {
-                const actual = actualMinutes[cat.key];
+                const actual = weeklyMinutes[cat.key];
                 const pct = totalActual > 0 ? (actual / totalActual) * 100 : 0;
                 return (
                   <div key={cat.key} className="space-y-1">

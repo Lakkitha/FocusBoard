@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useStore } from "./store/useStore";
 import { VIEWS } from "./constants";
 import Sidebar from "./components/Sidebar";
@@ -11,16 +11,32 @@ import Goals from "./views/Goals";
 import LockedIn from "./views/LockedIn";
 import AIChat from "./views/AIChat";
 import CustomView from "./views/CustomView";
+import { startNotificationEngine } from "./services/notificationEngine";
 
 export default function App() {
   const init = useStore((s) => s.init);
   const initialized = useStore((s) => s.initialized);
   const customViews = useStore((s) => s.customViews);
   const [view, setView] = useState(VIEWS.DASHBOARD);
+  const notificationStopRef = useRef(null);
 
   useEffect(() => {
     init();
   }, [init]);
+
+  useEffect(() => {
+    if (!initialized) return;
+    if (notificationStopRef.current) return;
+
+    notificationStopRef.current = startNotificationEngine({
+      getState: useStore.getState,
+    });
+
+    return () => {
+      notificationStopRef.current?.();
+      notificationStopRef.current = null;
+    };
+  }, [initialized]);
 
   useEffect(() => {
     if (!view.startsWith("custom-")) return;
