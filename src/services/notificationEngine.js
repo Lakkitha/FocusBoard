@@ -1,4 +1,5 @@
 import { buildAIContext } from "../utils/buildAIContext";
+import { buildCalendarEvents } from "../utils/buildCalendarEvents";
 import { chatWithOllama } from "./ollamaService";
 
 const DEFAULT_INTERVAL_MINUTES = 60;
@@ -6,9 +7,12 @@ const DEFAULT_INITIAL_DELAY_MINUTES = 5;
 
 let streakNudgeSentToday = false;
 let budgetNudgeSentToday = false;
+let deadlineNudgeSentToday = false;
 let midnightResetTimer = null;
 let budgetNudgeTimer = null;
 let budgetNudgeInterval = null;
+let deadlineNudgeTimer = null;
+let deadlineNudgeInterval = null;
 
 function buildNudgeSystemPrompt(storeSnapshot) {
   const snapshotJson = JSON.stringify(storeSnapshot || {}, null, 2);
@@ -25,6 +29,11 @@ function buildBudgetSystemPrompt(storeSnapshot, categoryName, daysRemaining) {
   return `You are FocusBoard's budget coach.\n\n## LIVE USER DATA (use only this for any stats)\n${snapshotJson}\n\nRules:\n- Write one short sentence about staying on pace.\n- Mention ${categoryName} and ${daysRemaining} days left.\n- Keep it under 18 words.`;
 }
 
+function buildDeadlineSystemPrompt(storeSnapshot, title, dueDate) {
+  const snapshotJson = JSON.stringify(storeSnapshot || {}, null, 2);
+  return `You are FocusBoard's deadline reminder.\n\n## LIVE USER DATA (use only this for any stats)\n${snapshotJson}\n\nRules:\n- Write one short sentence reminding the user about ${title} due on ${dueDate}.\n- Keep it under 18 words.`;
+}
+
 function scheduleMidnightReset() {
   if (midnightResetTimer) clearTimeout(midnightResetTimer);
   const now = new Date();
@@ -35,6 +44,7 @@ function scheduleMidnightReset() {
   midnightResetTimer = setTimeout(() => {
     streakNudgeSentToday = false;
     budgetNudgeSentToday = false;
+    deadlineNudgeSentToday = false;
     scheduleMidnightReset();
   }, delay);
 }
@@ -43,6 +53,16 @@ function msUntilNextNineAM() {
   const now = new Date();
   const next = new Date(now);
   next.setHours(9, 0, 0, 0);
+  if (next <= now) {
+    next.setDate(next.getDate() + 1);
+  }
+  return next.getTime() - now.getTime();
+}
+
+function msUntilNextEightAM() {
+  const now = new Date();
+  const next = new Date(now);
+  next.setHours(8, 0, 0, 0);
   if (next <= now) {
     next.setDate(next.getDate() + 1);
   }
@@ -111,6 +131,49 @@ export function startNotificationEngine({
       budgetNudgeSentToday = true;
     } catch (error) {
       console.error("Budget nudge failed:", error);
+    }
+  };
+
+  const sendDeadlineNudge = async () => {
+    if (stopped || deadlineNudgeSentToday) return;
+
+    const storeSnapshot = buildAIContext(getState());
+    const events = buildCalendarEvents(getState());
+    if (!events.length) return;
+
+    const overdueEvents = events.filter((event) => event.overdue);
+    const urgentDueSoon = events
+      .filter((event) => event.daysUntil >= 0 && event.daysUntil <= 2)
+      .sort((a, b) => a.daysUntil - b.daysUntil);
+
+    if (overdueEvents.length === 0 && urgentDueSoon.length === 0) return;
+
+    const mostUrgent = overdueEvents.length
+      ? overdueEvents.sort((a, b) => a.daysUntil - b.daysUntil)[0]
+      : urgentDueSoon[0];
+
+    const systemPromptOverride = buildDeadlineSystemPrompt(
+      storeSnapshot,
+      mostUrgent.title,
+      mostUrgent.dueDate,
+    );
+    const userMessage =
+      "Write one sentence reminding the user about the most urgent deadline.";
+
+    try {
+      const result = await chatWithOllama({
+        userMessage,
+        storeSnapshot,
+        conversationHistory: [],
+        systemPromptOverride,
+      });
+
+      if (result?.error || !result?.text) return;
+
+      window.electronAPI.showNotification("Deadline reminder", result.text);
+      deadlineNudgeSentToday = true;
+    } catch (error) {
+      console.error("Deadline nudge failed:", error);
     }
   };
 
@@ -185,6 +248,11 @@ export function startNotificationEngine({
     budgetNudgeInterval = setInterval(sendBudgetNudge, 24 * 60 * 60 * 1000);
   }, msUntilNextNineAM());
 
+  deadlineNudgeTimer = setTimeout(() => {
+    sendDeadlineNudge();
+    deadlineNudgeInterval = setInterval(sendDeadlineNudge, 24 * 60 * 60 * 1000);
+  }, msUntilNextEightAM());
+
   return () => {
     stopped = true;
     if (timeoutId) clearTimeout(timeoutId);
@@ -192,5 +260,7 @@ export function startNotificationEngine({
     if (midnightResetTimer) clearTimeout(midnightResetTimer);
     if (budgetNudgeTimer) clearTimeout(budgetNudgeTimer);
     if (budgetNudgeInterval) clearInterval(budgetNudgeInterval);
+    if (deadlineNudgeTimer) clearTimeout(deadlineNudgeTimer);
+    if (deadlineNudgeInterval) clearInterval(deadlineNudgeInterval);
   };
 }
