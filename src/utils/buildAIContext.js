@@ -1,5 +1,15 @@
-import { getLockedInScore, getWeekKey } from "../store/useStore";
-import { getCategoryLabel, getSessionCategoryKey } from "../viewConfig";
+import { getLockedInScore } from "../store/useStore";
+import {
+  getCategoryLabel,
+  getSessionCategoryKey,
+  getTrackedCategories,
+} from "../viewConfig";
+import { computeBestStreak, computeCurrentStreak } from "./computeStreak";
+import {
+  computeWeeklyBudget,
+  getWeekRange,
+  localDateString,
+} from "./computeWeeklyBudget";
 
 const BUILTIN_CATEGORY_KEYS = [
   "courses",
@@ -33,13 +43,6 @@ function inLastNDays(dateStr, days) {
   return check >= start && check <= end;
 }
 
-function getWeekRangeFromKey(weekKey) {
-  const start = parseDate(weekKey) || toStartOfDay(new Date());
-  const end = new Date(start);
-  end.setDate(end.getDate() + 6);
-  return { start, end };
-}
-
 function formatWeekLabel(start, end) {
   return `${start.toLocaleDateString("en-US", {
     month: "short",
@@ -48,6 +51,11 @@ function formatWeekLabel(start, end) {
     month: "short",
     day: "numeric",
   })}`;
+}
+
+function normalizeWeekKey(dateStr) {
+  const { weekStart } = getWeekRange(new Date(dateStr));
+  return localDateString(weekStart);
 }
 
 function isInRange(dateStr, range) {
@@ -105,6 +113,8 @@ function ensureCategoryKeys(...sources) {
 }
 
 export function buildAIContext(store = {}) {
+  // Note: chat history is NOT included in this snapshot.
+  // History is passed separately via conversationHistory in ollamaService.
   const courses = store.courses || [];
   const projects = store.projects || [];
   const personalProjects = store.personalProjects || [];
@@ -121,13 +131,15 @@ export function buildAIContext(store = {}) {
     customViews,
   };
 
-  const currentWeekKey = getWeekKey();
-  const thisWeekRange = getWeekRangeFromKey(currentWeekKey);
-  const lastWeekStart = new Date(thisWeekRange.start);
-  lastWeekStart.setDate(lastWeekStart.getDate() - 7);
-  const lastWeekRange = getWeekRangeFromKey(
-    lastWeekStart.toISOString().slice(0, 10),
+  const { weekStart: thisWeekStart, weekEnd: thisWeekEnd } = getWeekRange(
+    new Date(),
   );
+  const thisWeekRange = { start: thisWeekStart, end: thisWeekEnd };
+  const lastWeekStart = new Date(thisWeekStart);
+  lastWeekStart.setDate(lastWeekStart.getDate() - 7);
+  const { weekStart: lastWeekStartDate, weekEnd: lastWeekEndDate } =
+    getWeekRange(lastWeekStart);
+  const lastWeekRange = { start: lastWeekStartDate, end: lastWeekEndDate };
 
   const allCategoryMinutes = buildCategoryMinutes(sessions);
   const thisWeekMinutes = buildCategoryMinutes(sessions, thisWeekRange);
@@ -214,8 +226,9 @@ export function buildAIContext(store = {}) {
       durationMinutes: Number(session.minutes || 0),
     }));
 
+  const currentWeekKey = localDateString(thisWeekRange.start);
   const weeklyGoals = goals
-    .filter((goal) => goal.weekKey === currentWeekKey)
+    .filter((goal) => normalizeWeekKey(goal.weekKey) === currentWeekKey)
     .map((goal) => ({
       text: goal.text || "",
       completed: Boolean(goal.done),
@@ -253,6 +266,40 @@ export function buildAIContext(store = {}) {
     totalLoggedHours: minutesToHours(allCategoryMinutes[view.key] || 0),
   }));
 
+  const budgetCategories = getTrackedCategories(customViews).map(
+    (category) => ({
+      key: category.key,
+      name: category.label,
+      weeklyTargetHours: Number(categoryTargets[category.key] || 0),
+      color: category.color,
+    }),
+  );
+  const weeklyBudget = computeWeeklyBudget(
+    sessions,
+    budgetCategories,
+    new Date(),
+  );
+  const mostBehind = weeklyBudget.categories
+    .filter((category) => category.remainingHours > 1)
+    .map((category) => {
+      const expected = (category.targetHours * category.pace) / 100;
+      return {
+        name: category.name,
+        gapHours: Math.max(0, expected - category.loggedHours),
+      };
+    })
+    .sort((a, b) => b.gapHours - a.gapHours)[0];
+
+  const aiSummary =
+    mostBehind && mostBehind.gapHours > 0
+      ? `${mostBehind.name} is ${mostBehind.gapHours.toFixed(1)}h behind pace with ${weeklyBudget.daysRemaining} days left; consider prioritizing it today.`
+      : "All categories are on or ahead of pace this week.";
+
+  const currentStreak = computeCurrentStreak(sessions);
+  const bestStreak = computeBestStreak(sessions);
+  const streakAtRisk =
+    !currentStreak.todayLogged && new Date().getHours() >= 18;
+
   return {
     courses: coursesSnapshot,
     passiveIncomeProjects,
@@ -264,6 +311,16 @@ export function buildAIContext(store = {}) {
       recentDays: lockedInRecentDays,
     },
     customViews: customViewsSnapshot,
+    streak: {
+      current: currentStreak.current,
+      best: bestStreak,
+      todayLogged: currentStreak.todayLogged,
+      streakAtRisk,
+    },
+    weeklyBudget: {
+      ...weeklyBudget,
+      aiSummary,
+    },
     weekRanges: {
       thisWeek: {
         weekKey: currentWeekKey,

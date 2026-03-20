@@ -11,6 +11,7 @@ import {
 } from "recharts";
 import { ShieldCheck, Sunrise, Sun, Moon, Trash2 } from "lucide-react";
 import { useStore, getLockedInScore } from "../store/useStore";
+import { localDateString } from "../utils/computeStreak";
 
 const PERIODS = [
   { key: "morning", label: "Morning", icon: Sunrise },
@@ -51,6 +52,7 @@ function HistoryTooltip({ active, payload, label }) {
 
 export default function LockedIn() {
   const lockedInByDate = useStore((s) => s.lockedInByDate);
+  const sessions = useStore((s) => s.sessions);
   const setLockedInPeriod = useStore((s) => s.setLockedInPeriod);
   const deleteLockedInDay = useStore((s) => s.deleteLockedInDay);
 
@@ -98,6 +100,40 @@ export default function LockedIn() {
       periodsCompleted,
     };
   }, [historyData]);
+
+  const streakStrip = useMemo(() => {
+    const totals = new Map();
+    sessions.forEach((session) => {
+      if (!session?.date) return;
+      const key = localDateString(session.date);
+      const minutes = Number(session.minutes || 0);
+      totals.set(key, (totals.get(key) || 0) + minutes);
+    });
+
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const days = [];
+
+    for (let i = 13; i >= 0; i -= 1) {
+      const date = new Date(today.getTime() - i * 86400000);
+      const key = localDateString(date);
+      const minutes = totals.get(key) || 0;
+      days.push({
+        key,
+        minutes,
+        hasSession: minutes > 0,
+        label: date.toLocaleDateString("en-US", { weekday: "short" }),
+        dayLabel: date.toLocaleDateString("en-US", { day: "numeric" }),
+        isToday: i === 0,
+        tooltip: `${date.toLocaleDateString("en-US", {
+          month: "short",
+          day: "numeric",
+        })} - ${minutes} min`,
+      });
+    }
+
+    return days;
+  }, [sessions]);
 
   return (
     <div className="p-6 space-y-6 max-w-5xl mx-auto">
@@ -207,6 +243,30 @@ export default function LockedIn() {
           <p className="text-2xl font-bold text-surface-50 mt-1">
             {summary.periodsCompleted}
           </p>
+        </div>
+      </div>
+
+      <div className="card space-y-3">
+        <div className="flex items-center justify-between">
+          <h2 className="font-semibold text-surface-50">Streak History</h2>
+          <span className="text-xs text-surface-400">Last 14 days</span>
+        </div>
+        <div className="flex items-center justify-between gap-1">
+          {streakStrip.map((day) => (
+            <div key={day.key} className="flex flex-col items-center gap-1">
+              <div
+                title={day.tooltip}
+                className={`w-5 h-5 rounded-full border transition-colors ${
+                  day.hasSession
+                    ? "bg-amber-400 border-amber-300"
+                    : "border-surface-500 bg-surface-700"
+                } ${day.isToday ? "ring-2 ring-brand-purple/40" : ""}`}
+              />
+              <span className="text-[10px] text-surface-400">
+                {day.dayLabel}
+              </span>
+            </div>
+          ))}
         </div>
       </div>
 

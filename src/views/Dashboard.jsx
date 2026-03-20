@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip } from "recharts";
 import { useStore, getWeekKey } from "../store/useStore";
 import {
@@ -9,9 +9,19 @@ import {
   Circle,
   Settings2,
   Briefcase,
+  ChevronDown,
 } from "lucide-react";
 import { VIEWS } from "../constants";
 import { getTrackedCategories, getSessionCategoryKey } from "../viewConfig";
+import {
+  computeBestStreak,
+  computeCurrentStreak,
+} from "../utils/computeStreak";
+import {
+  computeWeeklyBudget,
+  getWeekRange,
+  localDateString,
+} from "../utils/computeWeeklyBudget";
 
 const CustomTooltip = ({ active, payload }) => {
   if (active && payload && payload.length) {
@@ -81,6 +91,15 @@ function isDateInRange(dateStr, range) {
   return date >= range.start && date <= range.end;
 }
 
+function parseLocalDate(dateKey) {
+  return new Date(`${dateKey}T00:00:00`);
+}
+
+function normalizeWeekKey(dateKey) {
+  const { weekStart } = getWeekRange(parseLocalDate(dateKey));
+  return localDateString(weekStart);
+}
+
 export default function Dashboard({ onNavigate }) {
   const sessions = useStore((s) => s.sessions);
   const courses = useStore((s) => s.courses);
@@ -93,6 +112,10 @@ export default function Dashboard({ onNavigate }) {
 
   const [editTargets, setEditTargets] = useState(false);
   const [draftTargets, setDraftTargets] = useState({});
+  const [budgetCollapsed, setBudgetCollapsed] = useState(() => {
+    if (typeof window === "undefined") return false;
+    return localStorage.getItem("focusboard_budget_collapsed") === "true";
+  });
   const categories = useMemo(
     () => getTrackedCategories(customViews),
     [customViews],
@@ -152,10 +175,64 @@ export default function Dashboard({ onNavigate }) {
 
   // This week's goals
   const weekGoals = useMemo(
-    () => goals.filter((g) => g.weekKey === weekKey),
+    () => goals.filter((g) => normalizeWeekKey(g.weekKey) === weekKey),
     [goals, weekKey],
   );
   const doneGoals = weekGoals.filter((g) => g.done).length;
+
+  const streak = useMemo(() => computeCurrentStreak(sessions), [sessions]);
+  const bestStreak = useMemo(() => computeBestStreak(sessions), [sessions]);
+
+  const budgetCategories = useMemo(
+    () =>
+      categories.map((category) => ({
+        key: category.key,
+        name: category.label,
+        weeklyTargetHours: Number(categoryTargets[category.key] || 0),
+        color: category.color,
+      })),
+    [categories, categoryTargets],
+  );
+
+  const weeklyBudget = useMemo(
+    () => computeWeeklyBudget(sessions, budgetCategories, new Date()),
+    [sessions, budgetCategories],
+  );
+
+  const categoryNameByKey = useMemo(() => {
+    const map = new Map();
+    budgetCategories.forEach((category) => {
+      map.set(category.key, category.name);
+    });
+    return map;
+  }, [budgetCategories]);
+
+  const rebalanceText = useMemo(() => {
+    if (!weeklyBudget.rebalanceSuggestion.from) return "";
+    const fromKey = weeklyBudget.rebalanceSuggestion.from;
+    const toKey = weeklyBudget.rebalanceSuggestion.to;
+    const fromCategory = weeklyBudget.categories.find(
+      (category) => category.key === fromKey,
+    );
+    const toCategory = weeklyBudget.categories.find(
+      (category) => category.key === toKey,
+    );
+
+    if (!fromCategory || !toCategory) return "";
+
+    const overHours = Math.abs(fromCategory.remainingHours);
+    const behindHours = Math.max(0, toCategory.remainingHours);
+
+    return `Suggestion: shift ~${weeklyBudget.rebalanceSuggestion.hours.toFixed(1)}h from ${categoryNameByKey.get(fromKey)} to ${categoryNameByKey.get(toKey)} — you're ${overHours.toFixed(1)}h over on ${categoryNameByKey.get(fromKey)} and ${behindHours.toFixed(1)}h behind on ${categoryNameByKey.get(toKey)} with ${weeklyBudget.daysRemaining} days left.`;
+  }, [weeklyBudget, categoryNameByKey]);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    localStorage.setItem(
+      "focusboard_budget_collapsed",
+      String(budgetCollapsed),
+    );
+  }, [budgetCollapsed]);
 
   // Recent courses (top 3 by closest deadline or most recent)
   const recentCourses = useMemo(
@@ -278,6 +355,221 @@ export default function Dashboard({ onNavigate }) {
             </div>
           );
         })}
+        <div className="card space-y-2.5">
+          <div className="flex items-center justify-between">
+            <span className="text-xs font-medium text-surface-300">Streak</span>
+            {!streak.todayLogged && streak.current > 0 && (
+              <span className="badge bg-amber-500/10 text-amber-300">
+                log today to continue
+              </span>
+            )}
+          </div>
+          <div
+            className={`text-2xl font-bold ${
+              streak.current > 0 ? "text-amber-300" : "text-surface-400"
+            }`}
+          >
+            {streak.current}
+          </div>
+          <p className="text-[11px] text-surface-400">day streak</p>
+          <p className="text-[11px] text-surface-400">
+            {streak.current === 0
+              ? "Start your streak today"
+              : `Best: ${bestStreak} days`}
+          </p>
+        </div>
+      </div>
+
+      <div className="card space-y-4">
+        <div className="flex items-center justify-between">
+          <h2 className="font-semibold text-surface-50">Weekly Budget</h2>
+          <button
+            type="button"
+            onClick={() => setBudgetCollapsed((value) => !value)}
+            className="btn-ghost flex items-center gap-1"
+          >
+            <ChevronDown
+              className={`w-4 h-4 transition-transform ${
+                budgetCollapsed ? "rotate-180" : ""
+              }`}
+            />
+            {budgetCollapsed ? "Expand" : "Collapse"}
+          </button>
+        </div>
+
+        {!budgetCollapsed && (
+          <>
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+              <div className="card">
+                <p className="text-xs text-surface-300">Total budget</p>
+                <p className="text-2xl font-bold text-surface-50 mt-1">
+                  {weeklyBudget.totalTargetHours.toFixed(1)}h
+                </p>
+              </div>
+              <div className="card">
+                <p className="text-xs text-surface-300">Logged so far</p>
+                <p className="text-2xl font-bold text-surface-50 mt-1">
+                  {weeklyBudget.totalLoggedHours.toFixed(1)}h
+                </p>
+                <p className="text-xs text-surface-400 mt-1">
+                  {parseLocalDate(weeklyBudget.weekStart).toLocaleDateString(
+                    "en-US",
+                    {
+                      weekday: "short",
+                    },
+                  )}{" "}
+                  -{" "}
+                  {new Date(
+                    parseLocalDate(weeklyBudget.weekStart).getTime() +
+                      (weeklyBudget.daysElapsed - 1) * 86400000,
+                  ).toLocaleDateString("en-US", { weekday: "short" })}
+                </p>
+              </div>
+              <div className="card">
+                <p className="text-xs text-surface-300">Remaining</p>
+                <p
+                  className="text-2xl font-bold mt-1"
+                  style={{
+                    color:
+                      weeklyBudget.totalRemainingHours < 0
+                        ? "var(--color-text-danger)"
+                        : weeklyBudget.totalRemainingHours <
+                            weeklyBudget.totalTargetHours * 0.3
+                          ? "var(--color-text-warning)"
+                          : "#e8e8e8",
+                  }}
+                >
+                  {weeklyBudget.totalRemainingHours.toFixed(1)}h
+                </p>
+              </div>
+            </div>
+
+            <div className="space-y-3">
+              {weeklyBudget.categories.map((category) => {
+                const barWidth = Math.min(
+                  100,
+                  (category.percentUsed / 120) * 100,
+                );
+                let statusLabel = "on track";
+                if (category.status === "behind") {
+                  statusLabel = `${category.remainingHours.toFixed(1)}h left`;
+                } else if (category.status === "over") {
+                  statusLabel = `+${Math.abs(category.remainingHours).toFixed(1)}h over`;
+                } else if (category.status === "complete") {
+                  statusLabel = "complete";
+                }
+
+                const statusStyles = {
+                  "on-track": {
+                    background: "var(--color-background-success)",
+                    color: "var(--color-text-success)",
+                  },
+                  behind: {
+                    background: "var(--color-background-warning)",
+                    color: "var(--color-text-warning)",
+                  },
+                  over: {
+                    background: "var(--color-background-danger)",
+                    color: "var(--color-text-danger)",
+                  },
+                  complete: {
+                    background: "var(--color-background-success)",
+                    color: "var(--color-text-success)",
+                  },
+                };
+
+                const barColor =
+                  category.status === "over"
+                    ? "var(--color-background-danger)"
+                    : category.status === "behind"
+                      ? "var(--color-background-warning)"
+                      : "var(--color-background-success)";
+
+                return (
+                  <div key={category.key} className="space-y-1">
+                    <div className="flex items-center gap-3">
+                      <span className="text-xs text-surface-200 w-28">
+                        {category.name}
+                      </span>
+                      <div className="flex-1 h-2 rounded-full bg-surface-500 overflow-hidden">
+                        <div
+                          className="h-full rounded-full"
+                          style={{
+                            width: `${barWidth}%`,
+                            background: barColor,
+                          }}
+                        />
+                      </div>
+                      <span className="text-xs text-surface-300 tabular-nums">
+                        {category.loggedHours.toFixed(1)}h /{" "}
+                        {category.targetHours.toFixed(1)}h
+                      </span>
+                      <span
+                        className="badge"
+                        style={statusStyles[category.status]}
+                      >
+                        {statusLabel}
+                      </span>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+
+            {rebalanceText && (
+              <p className="text-xs text-surface-400">{rebalanceText}</p>
+            )}
+
+            <div className="space-y-2">
+              <div className="flex items-center justify-between gap-2">
+                {Object.keys(weeklyBudget.dailyTotals).map((dateKey) => {
+                  const total = weeklyBudget.dailyTotals[dateKey];
+                  const todayKey = localDateString(new Date());
+                  const isToday = dateKey === todayKey;
+                  const isPast = dateKey < todayKey;
+                  const dayLabel = parseLocalDate(dateKey).toLocaleDateString(
+                    "en-US",
+                    {
+                      weekday: "short",
+                    },
+                  );
+
+                  return (
+                    <div
+                      key={dateKey}
+                      className={`flex-1 rounded-lg border px-2 py-2 text-center text-xs ${
+                        isToday ? "border-surface-400" : "border-surface-700"
+                      } ${isPast ? "bg-surface-600" : "bg-surface-700"}`}
+                      style={
+                        isToday
+                          ? {
+                              borderColor: "var(--color-background-info)",
+                              background: "var(--color-background-info)",
+                              color: "var(--color-text-info)",
+                            }
+                          : {}
+                      }
+                    >
+                      <div className="font-semibold">
+                        {isPast || isToday ? total.toFixed(1) : "-"}
+                      </div>
+                      <div className="text-[10px] mt-1">
+                        {isToday ? "today" : dayLabel}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+              <p className="text-xs text-surface-400">
+                {weeklyBudget.totalRemainingHours <= 0
+                  ? "Weekly targets complete."
+                  : weeklyBudget.daysRemaining === 0
+                    ? "Last day - give it everything."
+                    : `Need ~${weeklyBudget.requiredDailyHours.toFixed(1)}h/day to hit weekly targets by Sunday.`}
+              </p>
+            </div>
+          </>
+        )}
       </div>
 
       {/* Main row: donut + goals */}
