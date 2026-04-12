@@ -11,6 +11,7 @@ import Goals from "./views/Goals";
 import LockedIn from "./views/LockedIn";
 import AIChat from "./views/AIChat";
 import CustomView from "./views/CustomView";
+import Calendar from "./components/Calendar";
 import { startNotificationEngine } from "./services/notificationEngine";
 
 export default function App() {
@@ -72,6 +73,8 @@ export default function App() {
         return <Goals />;
       case VIEWS.LOCKED_IN:
         return <LockedIn />;
+      case VIEWS.CALENDAR:
+        return <Calendar />;
       case VIEWS.AI:
         return <AIChat />;
       default:

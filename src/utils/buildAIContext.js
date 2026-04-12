@@ -5,6 +5,7 @@ import {
   getTrackedCategories,
 } from "../viewConfig";
 import { computeBestStreak, computeCurrentStreak } from "./computeStreak";
+import { buildCalendarEvents } from "./buildCalendarEvents";
 import {
   computeWeeklyBudget,
   getWeekRange,
@@ -300,6 +301,16 @@ export function buildAIContext(store = {}) {
   const streakAtRisk =
     !currentStreak.todayLogged && new Date().getHours() >= 18;
 
+  const calendarEvents = buildCalendarEvents(store);
+  const overdueEvents = calendarEvents.filter((event) => event.overdue);
+  const dueSoonEvents = calendarEvents.filter(
+    (event) => event.daysUntil >= 0 && event.daysUntil <= 7,
+  );
+  const dueThisMonthEvents = calendarEvents.filter(
+    (event) => event.daysUntil >= 0 && event.daysUntil <= 30,
+  );
+  const overdueCount = overdueEvents.length;
+
   return {
     courses: coursesSnapshot,
     passiveIncomeProjects,
@@ -321,6 +332,12 @@ export function buildAIContext(store = {}) {
       ...weeklyBudget,
       aiSummary,
     },
+    upcomingMilestones: {
+      overdue: overdueEvents,
+      dueSoon: dueSoonEvents,
+      dueThisMonth: dueThisMonthEvents,
+    },
+    overdueCount,
     weekRanges: {
       thisWeek: {
         weekKey: currentWeekKey,

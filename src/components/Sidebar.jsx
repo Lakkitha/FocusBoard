@@ -11,6 +11,7 @@ import {
   Plus,
   X,
   Flag,
+  CalendarDays,
 } from "lucide-react";
 import { VIEWS } from "../constants";
 import { useState } from "react";
@@ -24,6 +25,7 @@ const NAV_ITEMS = [
   { view: VIEWS.LOG_SESSION, label: "Log Session", icon: Timer },
   { view: VIEWS.GOALS, label: "Weekly Goals", icon: CheckSquare },
   { view: VIEWS.LOCKED_IN, label: "Locked In", icon: ShieldCheck },
+  { view: VIEWS.CALENDAR, label: "Calendar", icon: CalendarDays },
 ];
 
 const AI_ITEM = { view: VIEWS.AI, label: "AI Assistant", icon: Sparkles };

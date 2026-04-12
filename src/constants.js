@@ -6,5 +6,6 @@ export const VIEWS = {
   LOG_SESSION: "log",
   GOALS: "goals",
   LOCKED_IN: "locked-in",
+  CALENDAR: "calendar",
   AI: "ai",
 };

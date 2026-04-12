@@ -20,9 +20,9 @@ const DEFAULT_STATE = {
   // Category targets (hours/week)
   categoryTargets: {
     courses: 10,
-    passive: 8,
+    passive: 5,
     work: 40,
-    health: 5,
+    health: 7,
     personal: 5,
   },
 
@@ -282,7 +282,7 @@ export const useStore = create((set, get) => ({
   },
 
   addMilestone: (projectId, text) => {
-    const milestone = { id: uid(), text, done: false };
+    const milestone = { id: uid(), text, done: false, dueDate: null };
     set((s) => ({
       projects: s.projects.map((p) =>
         p.id === projectId
@@ -360,7 +360,7 @@ export const useStore = create((set, get) => ({
   },
 
   addPersonalMilestone: (projectId, text) => {
-    const milestone = { id: uid(), text, done: false };
+    const milestone = { id: uid(), text, done: false, dueDate: null };
     set((s) => ({
       personalProjects: s.personalProjects.map((p) =>
         p.id === projectId
@@ -401,6 +401,44 @@ export const useStore = create((set, get) => ({
       ),
     }));
     get().persist();
+  },
+
+  setMilestoneDueDate: (projectType, projectId, milestoneId, dueDate) => {
+    if (!projectId || !milestoneId) return;
+    const dateValue = dueDate || null;
+
+    if (projectType === "passiveIncome") {
+      set((s) => ({
+        projects: s.projects.map((p) =>
+          p.id === projectId
+            ? {
+                ...p,
+                milestones: p.milestones.map((m) =>
+                  m.id === milestoneId ? { ...m, dueDate: dateValue } : m,
+                ),
+              }
+            : p,
+        ),
+      }));
+      get().persist();
+      return;
+    }
+
+    if (projectType === "personalProjects") {
+      set((s) => ({
+        personalProjects: s.personalProjects.map((p) =>
+          p.id === projectId
+            ? {
+                ...p,
+                milestones: (p.milestones || []).map((m) =>
+                  m.id === milestoneId ? { ...m, dueDate: dateValue } : m,
+                ),
+              }
+            : p,
+        ),
+      }));
+      get().persist();
+    }
   },
 
   // ── Sessions ───────────────────────────────────────────────────────────────

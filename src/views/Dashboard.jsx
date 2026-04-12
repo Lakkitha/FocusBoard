@@ -13,10 +13,7 @@ import {
 } from "lucide-react";
 import { VIEWS } from "../constants";
 import { getTrackedCategories, getSessionCategoryKey } from "../viewConfig";
-import {
-  computeBestStreak,
-  computeCurrentStreak,
-} from "../utils/computeStreak";
+import { computeCurrentStreak } from "../utils/computeStreak";
 import {
   computeWeeklyBudget,
   getWeekRange,
@@ -181,7 +178,6 @@ export default function Dashboard({ onNavigate }) {
   const doneGoals = weekGoals.filter((g) => g.done).length;
 
   const streak = useMemo(() => computeCurrentStreak(sessions), [sessions]);
-  const bestStreak = useMemo(() => computeBestStreak(sessions), [sessions]);
 
   const budgetCategories = useMemo(
     () =>
@@ -327,7 +323,7 @@ export default function Dashboard({ onNavigate }) {
       {/* Summary strip */}
       <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
         {categories.map((cat) => {
-          const actual = weeklyMinutes[cat.key];
+          const actual = weeklyMinutes[cat.key] || 0;
           const target = targetMinutes[cat.key] || 0;
           const pct = target > 0 ? Math.min(100, (actual / target) * 100) : 0;
           return (
@@ -350,7 +346,7 @@ export default function Dashboard({ onNavigate }) {
                 />
               </div>
               <p className="text-[11px] text-surface-400">
-                Target: {categoryTargets[cat.key]}h/wk
+                Logged · Target: {categoryTargets[cat.key]}h/wk
               </p>
             </div>
           );
@@ -358,11 +354,6 @@ export default function Dashboard({ onNavigate }) {
         <div className="card space-y-2.5">
           <div className="flex items-center justify-between">
             <span className="text-xs font-medium text-surface-300">Streak</span>
-            {!streak.todayLogged && streak.current > 0 && (
-              <span className="badge bg-amber-500/10 text-amber-300">
-                log today to continue
-              </span>
-            )}
           </div>
           <div
             className={`text-2xl font-bold ${
@@ -371,12 +362,6 @@ export default function Dashboard({ onNavigate }) {
           >
             {streak.current}
           </div>
-          <p className="text-[11px] text-surface-400">day streak</p>
-          <p className="text-[11px] text-surface-400">
-            {streak.current === 0
-              ? "Start your streak today"
-              : `Best: ${bestStreak} days`}
-          </p>
         </div>
       </div>
 

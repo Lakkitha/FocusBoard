@@ -1,17 +1,25 @@
 import { useState, useMemo } from "react";
 import { useStore } from "../store/useStore";
+import { localDateString } from "../utils/computeStreak";
 import Modal from "../components/Modal";
 import {
-  Plus, Pencil, Trash2, Briefcase, Clock,
-  CheckCircle2, Circle, ChevronDown, ChevronUp,
+  Plus,
+  Pencil,
+  Trash2,
+  Briefcase,
+  Clock,
+  CheckCircle2,
+  Circle,
+  ChevronDown,
+  ChevronUp,
 } from "lucide-react";
 
 const STATUSES = ["idea", "active", "paused", "completed"];
 
 const STATUS_STYLES = {
-  idea:      { badge: "bg-surface-500 text-surface-300",  dot: "#6b7280" },
-  active:    { badge: "bg-pink-500/10 text-pink-400",     dot: "#f472b6" },
-  paused:    { badge: "bg-amber-500/10 text-brand-amber", dot: "#fbbf24" },
+  idea: { badge: "bg-surface-500 text-surface-300", dot: "#6b7280" },
+  active: { badge: "bg-pink-500/10 text-pink-400", dot: "#f472b6" },
+  paused: { badge: "bg-amber-500/10 text-brand-amber", dot: "#fbbf24" },
   completed: { badge: "bg-green-500/10 text-brand-green", dot: "#4ade80" },
 };
 
@@ -47,7 +55,9 @@ function ProjectForm({ initial, onSave, onCancel }) {
             onChange={(e) => set("status", e.target.value)}
           >
             {STATUSES.map((s) => (
-              <option key={s} className="capitalize">{s}</option>
+              <option key={s} className="capitalize">
+                {s}
+              </option>
             ))}
           </select>
         </div>
@@ -76,22 +86,30 @@ function ProjectForm({ initial, onSave, onCancel }) {
 
       <div className="flex gap-2 pt-1">
         <button
-          onClick={() => { if (!form.name.trim()) return; onSave(form); }}
+          onClick={() => {
+            if (!form.name.trim()) return;
+            onSave(form);
+          }}
           className="btn-primary flex-1"
         >
           Save
         </button>
-        <button onClick={onCancel} className="btn-secondary flex-1">Cancel</button>
+        <button onClick={onCancel} className="btn-secondary flex-1">
+          Cancel
+        </button>
       </div>
     </div>
   );
 }
 
 function MilestoneSection({ project }) {
-  const addPersonalMilestone    = useStore((s) => s.addPersonalMilestone);
+  const addPersonalMilestone = useStore((s) => s.addPersonalMilestone);
   const togglePersonalMilestone = useStore((s) => s.togglePersonalMilestone);
   const deletePersonalMilestone = useStore((s) => s.deletePersonalMilestone);
+  const setMilestoneDueDate = useStore((s) => s.setMilestoneDueDate);
   const [input, setInput] = useState("");
+  const [editingId, setEditingId] = useState(null);
+  const [draftDate, setDraftDate] = useState("");
 
   const handleAdd = () => {
     const text = input.trim();
@@ -102,12 +120,47 @@ function MilestoneSection({ project }) {
 
   const milestones = project.milestones || [];
   const done = milestones.filter((m) => m.done).length;
+  const todayKey = localDateString(new Date());
+
+  const formatDate = (dateKey) =>
+    new Date(`${dateKey}T00:00:00`).toLocaleDateString("en-US", {
+      month: "short",
+      day: "numeric",
+    });
+
+  const getDaysUntil = (dateKey) => {
+    const today = new Date(`${todayKey}T00:00:00`);
+    const due = new Date(`${dateKey}T00:00:00`);
+    return Math.round((due - today) / 86400000);
+  };
+
+  const startEditing = (milestone) => {
+    setEditingId(milestone.id);
+    setDraftDate(milestone.dueDate || todayKey);
+  };
+
+  const cancelEditing = () => {
+    setEditingId(null);
+    setDraftDate("");
+  };
+
+  const saveDueDate = (milestoneId, value) => {
+    setMilestoneDueDate(
+      "personalProjects",
+      project.id,
+      milestoneId,
+      value || null,
+    );
+    cancelEditing();
+  };
 
   return (
     <div className="space-y-2">
       <div className="flex items-center justify-between text-xs text-surface-400">
         <span className="font-medium text-surface-300">Tasks</span>
-        <span>{done}/{milestones.length} done</span>
+        <span>
+          {done}/{milestones.length} done
+        </span>
       </div>
 
       {milestones.length > 0 && (
@@ -120,25 +173,115 @@ function MilestoneSection({ project }) {
       )}
 
       <ul className="space-y-1.5 mt-2">
-        {milestones.map((m) => (
-          <li key={m.id} className="flex items-center gap-2 group/item">
-            <button onClick={() => togglePersonalMilestone(project.id, m.id)} className="flex-shrink-0">
-              {m.done
-                ? <CheckCircle2 className="w-4 h-4 text-pink-400" />
-                : <Circle className="w-4 h-4 text-surface-400 hover:text-surface-200" />
+        {milestones.map((m) => {
+          const dueDate = m.dueDate || null;
+          const isOverdue = Boolean(dueDate && !m.done && dueDate < todayKey);
+          const daysUntil = dueDate ? getDaysUntil(dueDate) : null;
+          const isEditing = editingId === m.id;
+
+          let dueLabel = "";
+          let dueStyle = {};
+
+          if (dueDate && !m.done) {
+            if (isOverdue) {
+              dueLabel = `${Math.abs(daysUntil)} days overdue`;
+              dueStyle = {
+                background: "var(--color-background-danger)",
+                color: "var(--color-text-danger)",
+              };
+            } else if (daysUntil <= 7) {
+              dueLabel = daysUntil === 0 ? "due today" : `in ${daysUntil} days`;
+              dueStyle = {
+                background: "var(--color-background-warning)",
+                color: "var(--color-text-warning)",
+              };
+            } else {
+              dueLabel = formatDate(dueDate);
+              dueStyle = { color: "#94a3b8" };
+            }
+          }
+
+          if (dueDate && m.done) {
+            dueLabel = formatDate(dueDate);
+          }
+
+          return (
+            <li
+              key={m.id}
+              className="flex items-center gap-2 group/item"
+              style={
+                isOverdue
+                  ? {
+                      borderLeft: "2px solid var(--color-border-danger)",
+                      borderRadius: 0,
+                      paddingLeft: "6px",
+                    }
+                  : undefined
               }
-            </button>
-            <span className={`flex-1 text-xs ${m.done ? "line-through text-surface-400" : "text-surface-200"}`}>
-              {m.text}
-            </span>
-            <button
-              onClick={() => deletePersonalMilestone(project.id, m.id)}
-              className="opacity-0 group-hover/item:opacity-100 text-surface-500 hover:text-red-400 transition-all"
             >
-              <Trash2 className="w-3 h-3" />
-            </button>
-          </li>
-        ))}
+              <button
+                onClick={() => togglePersonalMilestone(project.id, m.id)}
+                className="flex-shrink-0"
+              >
+                {m.done ? (
+                  <CheckCircle2 className="w-4 h-4 text-pink-400" />
+                ) : (
+                  <Circle className="w-4 h-4 text-surface-400 hover:text-surface-200" />
+                )}
+              </button>
+              <span
+                className={`flex-1 text-xs ${m.done ? "line-through text-surface-400" : "text-surface-200"}`}
+              >
+                {m.text}
+              </span>
+              {isEditing ? (
+                <input
+                  type="date"
+                  className="input text-[11px] py-1 px-2 max-w-[140px]"
+                  value={draftDate}
+                  onChange={(e) => setDraftDate(e.target.value)}
+                  onBlur={() => saveDueDate(m.id, draftDate)}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter") saveDueDate(m.id, draftDate);
+                    if (e.key === "Escape") cancelEditing();
+                  }}
+                />
+              ) : dueDate ? (
+                <div className="flex items-center gap-1">
+                  <button
+                    type="button"
+                    onClick={() => startEditing(m)}
+                    className={`text-[10px] px-2 py-0.5 rounded-full ${m.done ? "line-through text-surface-400" : ""}`}
+                    style={dueStyle}
+                  >
+                    {dueLabel}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => saveDueDate(m.id, null)}
+                    className="text-[10px] text-surface-500 hover:text-surface-300"
+                  >
+                    x
+                  </button>
+                </div>
+              ) : (
+                <button
+                  type="button"
+                  onClick={() => startEditing(m)}
+                  className="text-[10px] text-surface-400 hover:text-surface-200"
+                >
+                  Add date
+                </button>
+              )}
+              <button
+                onClick={() => deletePersonalMilestone(project.id, m.id)}
+                className="opacity-0 group-hover/item:opacity-100 text-surface-500 hover:text-red-400 transition-all"
+              >
+                <Trash2 className="w-3 h-3" />
+              </button>
+            </li>
+          );
+        })}
       </ul>
 
       <div className="flex gap-2">
@@ -149,7 +292,10 @@ function MilestoneSection({ project }) {
           onChange={(e) => setInput(e.target.value)}
           onKeyDown={(e) => e.key === "Enter" && handleAdd()}
         />
-        <button onClick={handleAdd} className="btn-secondary px-3 py-1.5 text-xs flex-shrink-0">
+        <button
+          onClick={handleAdd}
+          className="btn-secondary px-3 py-1.5 text-xs flex-shrink-0"
+        >
           <Plus className="w-3.5 h-3.5" />
         </button>
       </div>
@@ -179,19 +325,23 @@ function ProjectCard({ project, onEdit, onDelete }) {
           <h3 className="font-semibold text-surface-50 text-sm leading-tight truncate">
             {project.name || "Unnamed Project"}
           </h3>
-          <span className={`badge mt-1 text-[10px] ${s.badge}`}>{project.status}</span>
+          <span className={`badge mt-1 text-[10px] ${s.badge}`}>
+            {project.status}
+          </span>
         </div>
       </div>
 
       <div className="flex items-center justify-between text-xs text-surface-400">
         <span className="flex items-center gap-1">
           <Clock className="w-3 h-3" />
-          {(loggedMins / 60).toFixed(1)}h logged
+          {(loggedMins / 60).toFixed(1)}h logged · {project.targetHoursPerWeek}
+          h/wk target
         </span>
-        <span className="flex items-center gap-3">
-          {milestones.length > 0 && <span>{milestoneDone}/{milestones.length} tasks</span>}
-          <span>{project.targetHoursPerWeek}h/wk</span>
-        </span>
+        {milestones.length > 0 && (
+          <span>
+            {milestoneDone}/{milestones.length} tasks
+          </span>
+        )}
       </div>
 
       {milestones.length > 0 && (
@@ -213,7 +363,11 @@ function ProjectCard({ project, onEdit, onDelete }) {
         onClick={() => setExpanded((v) => !v)}
         className="flex items-center gap-1.5 text-xs text-surface-400 hover:text-surface-200 transition-colors"
       >
-        {expanded ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
+        {expanded ? (
+          <ChevronUp className="w-3.5 h-3.5" />
+        ) : (
+          <ChevronDown className="w-3.5 h-3.5" />
+        )}
         {expanded ? "Hide" : "Show"} tasks
       </button>
 
@@ -238,13 +392,13 @@ function ProjectCard({ project, onEdit, onDelete }) {
 }
 
 export default function PersonalProjects() {
-  const personalProjects      = useStore((s) => s.personalProjects);
-  const addPersonalProject    = useStore((s) => s.addPersonalProject);
+  const personalProjects = useStore((s) => s.personalProjects);
+  const addPersonalProject = useStore((s) => s.addPersonalProject);
   const updatePersonalProject = useStore((s) => s.updatePersonalProject);
   const deletePersonalProject = useStore((s) => s.deletePersonalProject);
 
-  const [showAdd,      setShowAdd]      = useState(false);
-  const [editing,      setEditing]      = useState(null);
+  const [showAdd, setShowAdd] = useState(false);
+  const [editing, setEditing] = useState(null);
   const [statusFilter, setStatusFilter] = useState("All");
 
   const filtered = useMemo(() => {
@@ -252,18 +406,31 @@ export default function PersonalProjects() {
     return personalProjects.filter((p) => p.status === statusFilter);
   }, [personalProjects, statusFilter]);
 
-  const handleAdd    = (form) => { addPersonalProject(form);                setShowAdd(false); };
-  const handleEdit   = (form) => { updatePersonalProject(editing.id, form); setEditing(null);  };
-  const handleDelete = (id)   => { if (confirm("Delete this project?")) deletePersonalProject(id); };
+  const handleAdd = (form) => {
+    addPersonalProject(form);
+    setShowAdd(false);
+  };
+  const handleEdit = (form) => {
+    updatePersonalProject(editing.id, form);
+    setEditing(null);
+  };
+  const handleDelete = (id) => {
+    if (confirm("Delete this project?")) deletePersonalProject(id);
+  };
 
   return (
     <div className="p-6 space-y-5 max-w-5xl mx-auto">
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-3">
           <Briefcase className="w-5 h-5 text-pink-400" />
-          <h1 className="text-2xl font-bold text-surface-50">Personal Projects</h1>
+          <h1 className="text-2xl font-bold text-surface-50">
+            Personal Projects
+          </h1>
         </div>
-        <button onClick={() => setShowAdd(true)} className="btn-primary flex items-center gap-2">
+        <button
+          onClick={() => setShowAdd(true)}
+          className="btn-primary flex items-center gap-2"
+        >
           <Plus className="w-4 h-4" />
           Add Project
         </button>
@@ -292,7 +459,9 @@ export default function PersonalProjects() {
           return (
             <div key={s} className="card text-center">
               <p className="text-xl font-bold text-surface-50">{count}</p>
-              <span className={`badge mt-1 ${style.badge} text-[10px]`}>{s}</span>
+              <span className={`badge mt-1 ${style.badge} text-[10px]`}>
+                {s}
+              </span>
             </div>
           );
         })}
@@ -301,7 +470,9 @@ export default function PersonalProjects() {
       {filtered.length === 0 ? (
         <div className="card text-center py-12">
           <Briefcase className="w-10 h-10 text-surface-500 mx-auto mb-3" />
-          <p className="text-surface-300 font-medium">No personal projects yet</p>
+          <p className="text-surface-300 font-medium">
+            No personal projects yet
+          </p>
           <p className="text-surface-400 text-sm mt-1">
             Add your first personal project to start tracking time.
           </p>
@@ -321,13 +492,21 @@ export default function PersonalProjects() {
 
       {showAdd && (
         <Modal title="Add Personal Project" onClose={() => setShowAdd(false)}>
-          <ProjectForm initial={BLANK_PROJECT} onSave={handleAdd} onCancel={() => setShowAdd(false)} />
+          <ProjectForm
+            initial={BLANK_PROJECT}
+            onSave={handleAdd}
+            onCancel={() => setShowAdd(false)}
+          />
         </Modal>
       )}
 
       {editing && (
         <Modal title="Edit Personal Project" onClose={() => setEditing(null)}>
-          <ProjectForm initial={editing} onSave={handleEdit} onCancel={() => setEditing(null)} />
+          <ProjectForm
+            initial={editing}
+            onSave={handleEdit}
+            onCancel={() => setEditing(null)}
+          />
         </Modal>
       )}
     </div>

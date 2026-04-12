@@ -13,6 +13,7 @@ function getDateSet(sessions) {
   const set = new Set();
   (sessions || []).forEach((session) => {
     if (!session?.date) return;
+    if (Number(session.minutes || 0) <= 0) return;
     set.add(localDateString(session.date));
   });
   return set;

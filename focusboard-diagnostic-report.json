@@ -1,0 +1,963 @@
+{
+  "generated_at": "2026-04-12T12:41:29.807Z",
+  "config_used": {
+    "appDataDir": "C:\\Users\\lakki\\AppData\\Roaming\\FocusBoard",
+    "dataFileName": "focusboard-data.json",
+    "ollamaEndpoint": "http://localhost:11434/api/generate",
+    "ollamaModel": "mistral:7b",
+    "requiredTopLevelKeys": [
+      "courses",
+      "projects",
+      "personalProjects",
+      "sessions",
+      "goals",
+      "categoryTargets",
+      "customViews",
+      "lockedInByDate",
+      "chatThreads",
+      "activeChatThreadId"
+    ],
+    "builtinCategoryKeys": [
+      "courses",
+      "passive",
+      "personal",
+      "work",
+      "health"
+    ],
+    "requiredCategoryTargetKeys": [
+      "courses",
+      "passive",
+      "work",
+      "health",
+      "personal"
+    ],
+    "validSessionTypes": [
+      "course",
+      "project",
+      "personal",
+      "work",
+      "health"
+    ]
+  },
+  "inspection_data": {
+    "file": {
+      "dataFilePath": "C:\\Users\\lakki\\AppData\\Roaming\\FocusBoard\\focusboard-data.json",
+      "fileExists": true,
+      "fileReadable": true,
+      "fileSizeBytes": 23917,
+      "parseSuccess": true,
+      "rawData": {
+        "courses": [
+          {
+            "id": "9ecuujbk",
+            "title": "Microsoft Certified: Azure AI Fundamentals",
+            "platform": "Microsoft",
+            "completion": 1,
+            "deadline": "2026-04-05",
+            "notes": "",
+            "targetHoursPerWeek": 1,
+            "createdAt": "2026-03-09T03:26:20.472Z"
+          },
+          {
+            "id": "0kwcxki8",
+            "title": "MBA",
+            "platform": "Other",
+            "completion": 10,
+            "deadline": "2028-01-09",
+            "notes": "",
+            "targetHoursPerWeek": 9,
+            "createdAt": "2026-03-09T03:51:44.686Z"
+          },
+          {
+            "id": "vb4pw2di",
+            "title": "Claude Code in Action",
+            "platform": "Coursera",
+            "completion": 67,
+            "deadline": "2026-04-05",
+            "notes": "",
+            "targetHoursPerWeek": 1,
+            "createdAt": "2026-04-05T12:35:07.707Z"
+          }
+        ],
+        "projects": [],
+        "personalProjects": [
+          {
+            "id": "tpr8y7t8",
+            "name": "FocusBoard",
+            "description": "",
+            "status": "active",
+            "targetHoursPerWeek": 3,
+            "createdAt": "2026-03-14T16:32:13.892Z",
+            "milestones": [
+              {
+                "id": "b23myk5c",
+                "text": "Fixing minor issues",
+                "done": false
+              },
+              {
+                "id": "l1wnfy67",
+                "text": "Add AI functionality",
+                "done": true
+              },
+              {
+                "id": "gk9rdddk",
+                "text": "Fix AI process",
+                "done": true
+              }
+            ]
+          },
+          {
+            "id": "hbmsoi40",
+            "name": "FinanceBoard",
+            "description": "",
+            "status": "active",
+            "targetHoursPerWeek": 5,
+            "milestones": [],
+            "createdAt": "2026-04-06T16:37:14.989Z"
+          }
+        ],
+        "sessions": [
+          {
+            "id": "ftglyk8v",
+            "type": "health",
+            "refId": "",
+            "date": "2026-03-10",
+            "minutes": 60,
+            "note": "",
+            "category": "health"
+          },
+          {
+            "id": "gphae5te",
+            "type": "work",
+            "refId": "",
+            "date": "2026-03-09",
+            "minutes": 510,
+            "note": "",
+            "category": "work"
+          },
+          {
+            "id": "9rw05mrb",
+            "type": "course",
+            "refId": "0kwcxki8",
+            "date": "2026-03-11",
+            "minutes": 63,
+            "note": "Individual Assignment - Video Creation",
+            "category": "courses"
+          },
+          {
+            "id": "2wzyge4i",
+            "type": "work",
+            "refId": "",
+            "date": "2026-03-10",
+            "minutes": 511,
+            "note": "",
+            "category": "work"
+          },
+          {
+            "id": "3qvl7gqe",
+            "type": "health",
+            "refId": "",
+            "date": "2026-03-12",
+            "minutes": 60,
+            "note": "",
+            "category": "health"
+          },
+          {
+            "id": "lehvvg8m",
+            "type": "work",
+            "refId": "",
+            "date": "2026-03-12",
+            "minutes": 510,
+            "note": "",
+            "category": "work"
+          },
+          {
+            "id": "wcziwh97",
+            "type": "course",
+            "refId": "9ecuujbk",
+            "date": "2026-03-12",
+            "minutes": 6,
+            "note": "",
+            "category": "courses"
+          },
+          {
+            "id": "cvdxpubz",
+            "type": "work",
+            "refId": "",
+            "date": "2026-03-11",
+            "minutes": 510,
+            "note": "",
+            "category": "work"
+          },
+          {
+            "id": "l1xnpqef",
+            "type": "work",
+            "refId": "",
+            "date": "2026-03-13",
+            "minutes": 510,
+            "note": "",
+            "category": "work"
+          },
+          {
+            "id": "v2610ik6",
+            "type": "health",
+            "refId": "",
+            "date": "2026-03-14",
+            "minutes": 90,
+            "note": "",
+            "category": "health"
+          },
+          {
+            "id": "517o36ou",
+            "type": "personal",
+            "refId": "tpr8y7t8",
+            "date": "2026-03-14",
+            "minutes": 30,
+            "note": "",
+            "category": "personal"
+          },
+          {
+            "id": "8kbl9825",
+            "type": "personal",
+            "refId": "tpr8y7t8",
+            "date": "2026-03-14",
+            "minutes": 30,
+            "note": "",
+            "category": "personal"
+          },
+          {
+            "id": "s17j304o",
+            "type": "personal",
+            "refId": "tpr8y7t8",
+            "date": "2026-03-15",
+            "minutes": 30,
+            "note": "",
+            "category": "personal"
+          },
+          {
+            "id": "t1xnvwtm",
+            "type": "personal",
+            "refId": "tpr8y7t8",
+            "date": "2026-03-15",
+            "minutes": 30,
+            "note": "",
+            "category": "personal"
+          },
+          {
+            "id": "vldk26m8",
+            "type": "work",
+            "refId": "",
+            "date": "2026-03-16",
+            "minutes": 510,
+            "note": "",
+            "category": "work"
+          },
+          {
+            "id": "fnycvqs6",
+            "type": "work",
+            "refId": "",
+            "date": "2026-03-17",
+            "minutes": 555,
+            "note": "",
+            "category": "work"
+          },
+          {
+            "id": "2zr2m2ui",
+            "type": "health",
+            "refId": "",
+            "date": "2026-03-17",
+            "minutes": 60,
+            "note": "",
+            "category": "health"
+          },
+          {
+            "id": "fkqff5pe",
+            "type": "health",
+            "refId": "",
+            "date": "2026-03-18",
+            "minutes": 60,
+            "note": "",
+            "category": "health"
+          },
+          {
+            "id": "gycoyhp2",
+            "type": "work",
+            "refId": "",
+            "date": "2026-03-18",
+            "minutes": 570,
+            "note": "",
+            "category": "work"
+          },
+          {
+            "id": "395230hp",
+            "type": "health",
+            "refId": "",
+            "date": "2026-03-19",
+            "minutes": 60,
+            "note": "",
+            "category": "health"
+          },
+          {
+            "id": "7g53t63l",
+            "type": "work",
+            "refId": "",
+            "date": "2026-03-19",
+            "minutes": 555,
+            "note": "",
+            "category": "work"
+          },
+          {
+            "id": "3qsklb5e",
+            "type": "health",
+            "refId": "",
+            "date": "2026-03-20",
+            "minutes": 60,
+            "note": "",
+            "category": "health"
+          },
+          {
+            "id": "4ot3mvhd",
+            "type": "work",
+            "refId": "",
+            "date": "2026-03-20",
+            "minutes": 540,
+            "note": "",
+            "category": "work"
+          },
+          {
+            "id": "wzrjf5pd",
+            "type": "personal",
+            "refId": "tpr8y7t8",
+            "date": "2026-03-20",
+            "minutes": 330,
+            "note": "",
+            "category": "personal"
+          },
+          {
+            "id": "boblxxkh",
+            "type": "personal",
+            "refId": "tpr8y7t8",
+            "date": "2026-03-21",
+            "minutes": 30,
+            "note": "",
+            "category": "personal"
+          },
+          {
+            "id": "3gbssx5k",
+            "type": "course",
+            "refId": "0kwcxki8",
+            "date": "2026-03-21",
+            "minutes": 30,
+            "note": "",
+            "category": "courses"
+          },
+          {
+            "id": "bfutaw2q",
+            "type": "course",
+            "refId": "0kwcxki8",
+            "date": "2026-03-22",
+            "minutes": 240,
+            "note": "",
+            "category": "courses"
+          },
+          {
+            "id": "duv35y9i",
+            "type": "health",
+            "refId": "",
+            "date": "2026-03-22",
+            "minutes": 75,
+            "note": "",
+            "category": "health"
+          },
+          {
+            "id": "hhvewzsu",
+            "type": "health",
+            "refId": "",
+            "date": "2026-03-23",
+            "minutes": 45,
+            "note": "",
+            "category": "health"
+          },
+          {
+            "id": "6xaoxqmx",
+            "type": "work",
+            "refId": "",
+            "date": "2026-03-23",
+            "minutes": 570,
+            "note": "",
+            "category": "work"
+          },
+          {
+            "id": "znju0x9g",
+            "type": "health",
+            "refId": "",
+            "date": "2026-03-23",
+            "minutes": 50,
+            "note": "",
+            "category": "health"
+          },
+          {
+            "id": "9pem2fx7",
+            "type": "work",
+            "refId": "",
+            "date": "2026-03-24",
+            "minutes": 540,
+            "note": "",
+            "category": "work"
+          },
+          {
+            "id": "w5vbmgmk",
+            "type": "health",
+            "refId": "",
+            "date": "2026-03-24",
+            "minutes": 45,
+            "note": "",
+            "category": "health"
+          },
+          {
+            "id": "ugqbohr9",
+            "type": "work",
+            "refId": "",
+            "date": "2026-03-25",
+            "minutes": 530,
+            "note": "",
+            "category": "work"
+          },
+          {
+            "id": "le9e4u3o",
+            "type": "health",
+            "refId": "",
+            "date": "2026-03-25",
+            "minutes": 60,
+            "note": "",
+            "category": "health"
+          },
+          {
+            "id": "k20lpt8r",
+            "type": "work",
+            "refId": "",
+            "date": "2026-03-26",
+            "minutes": 540,
+            "note": "",
+            "category": "work"
+          },
+          {
+            "id": "adptfzc4",
+            "type": "health",
+            "refId": "",
+            "date": "2026-03-27",
+            "minutes": 75,
+            "note": "",
+            "category": "health"
+          },
+          {
+            "id": "2hmdw2cw",
+            "type": "work",
+            "refId": "",
+            "date": "2026-03-27",
+            "minutes": 510,
+            "note": "",
+            "category": "work"
+          },
+          {
+            "id": "5ir88czg",
+            "type": "health",
+            "refId": "",
+            "date": "2026-03-28",
+            "minutes": 50,
+            "note": "",
+            "category": "health"
+          },
+          {
+            "id": "dfp4mt20",
+            "type": "course",
+            "refId": "0kwcxki8",
+            "date": "2026-03-28",
+            "minutes": 300,
+            "note": "",
+            "category": "courses"
+          },
+          {
+            "id": "jb9b1zg6",
+            "type": "course",
+            "refId": "0kwcxki8",
+            "date": "2026-03-29",
+            "minutes": 270,
+            "note": "",
+            "category": "courses"
+          },
+          {
+            "id": "bk058xih",
+            "type": "work",
+            "refId": "",
+            "date": "2026-03-30",
+            "minutes": 540,
+            "note": "",
+            "category": "work"
+          },
+          {
+            "id": "9dxkjnno",
+            "type": "work",
+            "refId": "",
+            "date": "2026-03-31",
+            "minutes": 520,
+            "note": "",
+            "category": "work"
+          },
+          {
+            "id": "bw6bi1fl",
+            "type": "course",
+            "refId": "0kwcxki8",
+            "date": "2026-04-01",
+            "minutes": 240,
+            "note": "",
+            "category": "courses"
+          },
+          {
+            "id": "wv5xrci7",
+            "type": "work",
+            "refId": "",
+            "date": "2026-04-01",
+            "minutes": 510,
+            "note": "",
+            "category": "work"
+          },
+          {
+            "id": "nyn78cvb",
+            "type": "health",
+            "refId": "",
+            "date": "2026-04-02",
+            "minutes": 90,
+            "note": "",
+            "category": "health"
+          },
+          {
+            "id": "mcv2urry",
+            "type": "work",
+            "refId": "",
+            "date": "2026-04-03",
+            "minutes": 510,
+            "note": "",
+            "category": "work"
+          },
+          {
+            "id": "fiqpy6zb",
+            "type": "health",
+            "refId": "",
+            "date": "2026-04-03",
+            "minutes": 90,
+            "note": "",
+            "category": "health"
+          },
+          {
+            "id": "keawa4lo",
+            "type": "health",
+            "refId": "",
+            "date": "2026-04-04",
+            "minutes": 60,
+            "note": "",
+            "category": "health"
+          },
+          {
+            "id": "onb1yw84",
+            "type": "health",
+            "refId": "",
+            "date": "2026-04-05",
+            "minutes": 90,
+            "note": "",
+            "category": "health"
+          },
+          {
+            "id": "4huhqodg",
+            "type": "course",
+            "refId": "vb4pw2di",
+            "date": "2026-04-05",
+            "minutes": 30,
+            "note": "",
+            "category": "courses"
+          },
+          {
+            "id": "j7k5ecvd",
+            "type": "course",
+            "refId": "vb4pw2di",
+            "date": "2026-04-06",
+            "minutes": 30,
+            "note": "",
+            "category": "courses"
+          },
+          {
+            "id": "b1f19k4v",
+            "type": "personal",
+            "refId": "hbmsoi40",
+            "date": "2026-04-06",
+            "minutes": 60,
+            "note": "",
+            "category": "personal"
+          },
+          {
+            "id": "n4j16uwq",
+            "type": "health",
+            "refId": "",
+            "date": "2026-04-07",
+            "minutes": 60,
+            "note": "",
+            "category": "health"
+          },
+          {
+            "id": "loy3ofmp",
+            "type": "health",
+            "refId": "",
+            "date": "2026-04-08",
+            "minutes": 60,
+            "note": "",
+            "category": "health"
+          },
+          {
+            "id": "3sz51w3l",
+            "type": "work",
+            "refId": "",
+            "date": "2026-04-07",
+            "minutes": 540,
+            "note": "",
+            "category": "work"
+          },
+          {
+            "id": "p4cawvgu",
+            "type": "work",
+            "refId": "",
+            "date": "2026-04-08",
+            "minutes": 555,
+            "note": "",
+            "category": "work"
+          },
+          {
+            "id": "mvstdpzf",
+            "type": "work",
+            "refId": "",
+            "date": "2026-04-09",
+            "minutes": 510,
+            "note": "",
+            "category": "work"
+          },
+          {
+            "id": "74nf4o8b",
+            "type": "work",
+            "refId": "",
+            "date": "2026-04-10",
+            "minutes": 540,
+            "note": "",
+            "category": "work"
+          },
+          {
+            "id": "oanejtq2",
+            "type": "health",
+            "refId": "",
+            "date": "2026-04-11",
+            "minutes": 90,
+            "note": "",
+            "category": "health"
+          }
+        ],
+        "goals": [
+          {
+            "id": "de7c3hor",
+            "weekKey": "2026-03-07",
+            "text": "Azure AI Foundation",
+            "done": false
+          },
+          {
+            "id": "rouavqs8",
+            "weekKey": "2026-03-07",
+            "text": "GYM",
+            "done": true
+          },
+          {
+            "id": "e83vtbn6",
+            "weekKey": "2026-03-14",
+            "text": "Food",
+            "done": true
+          },
+          {
+            "id": "43vt2isd",
+            "weekKey": "2026-03-14",
+            "text": "Figure out the annualised factor thing",
+            "done": false
+          }
+        ],
+        "categoryTargets": {
+          "courses": 11,
+          "passive": 2,
+          "work": 40,
+          "health": 6
+        },
+        "customViews": [],
+        "lockedInByDate": {
+          "2026-03-19": {
+            "morning": false,
+            "noon": true,
+            "night": false
+          },
+          "2026-03-18": {
+            "morning": false,
+            "noon": false,
+            "night": true
+          },
+          "2026-03-20": {
+            "morning": false,
+            "noon": true,
+            "night": false
+          },
+          "2026-03-21": {
+            "morning": true,
+            "noon": true,
+            "night": true
+          },
+          "2026-03-22": {
+            "morning": false,
+            "noon": true,
+            "night": false
+          },
+          "2026-03-23": {
+            "morning": true,
+            "noon": true,
+            "night": true
+          },
+          "2026-03-24": {
+            "morning": true,
+            "noon": false,
+            "night": false
+          },
+          "2026-03-25": {
+            "morning": false,
+            "noon": true,
+            "night": false
+          },
+          "2026-03-26": {
+            "morning": true,
+            "noon": true,
+            "night": false
+          },
+          "2026-03-30": {
+            "morning": true,
+            "noon": true,
+            "night": false
+          },
+          "2026-04-01": {
+            "morning": true,
+            "noon": true,
+            "night": true
+          },
+          "2026-04-02": {
+            "morning": true,
+            "noon": false,
+            "night": false
+          },
+          "2026-04-03": {
+            "morning": false,
+            "noon": false,
+            "night": false
+          },
+          "2026-04-09": {
+            "morning": false,
+            "noon": true,
+            "night": false
+          },
+          "2026-04-08": {
+            "morning": true,
+            "noon": true,
+            "night": false
+          },
+          "2026-04-12": {
+            "morning": true,
+            "noon": true,
+            "night": false
+          },
+          "2026-04-11": {
+            "morning": false,
+            "noon": true,
+            "night": false
+          }
+        },
+        "chatThreads": [
+          {
+            "id": "efa32f24-75ea-4080-99d0-c7665c26f94d",
+            "title": "Hello World",
+            "createdAt": "2026-04-03T13:33:04.505Z",
+            "updatedAt": "2026-04-12T09:09:49.586Z",
+            "messages": [
+              {
+                "role": "user",
+                "content": "helo",
+                "timestamp": "2026-04-03T13:33:37.894Z"
+              },
+              {
+                "role": "assistant",
+                "content": "Hello! It looks like we're reviewing your progress for the week of March 30 - April 5. Let me help you understand how you've been doing and provide some suggestions for the remaining days.\n\nFirstly, I see that you have an ongoing streak of 26 days, which is great! However, to maintain and potentially improve this streak, it's essential to remain consistent with your logging and activities.\n\nMoving on to your weekly budget, the categories with areas for improvement are Courses & Certs, Health & Fitness, and Personal Projects. Specifically, Courses & Certs is 3.9 hours behind pace with only 2 days left in the week. To help you catch up, consider prioritizing it today.\n\nAs for this week's range, Mar 30 - Apr 5, I recommend focusing on your weekly budget goals while maintaining your ongoing streak. Remember, consistency is key to reaching your long-term objectives! Let me know if you have any questions or need further assistance.",
+                "timestamp": "2026-04-03T13:33:47.813Z"
+              },
+              {
+                "role": "user",
+                "content": "what can you tell me about my time with the job",
+                "timestamp": "2026-04-03T13:36:25.848Z"
+              },
+              {
+                "role": "assistant",
+                "content": "Based on the data from March 29 to April 4 (this week as per our Week Ranges), also known as the week starting March 30, you have logged approximately 34.7 hours into your main job or work category. This represents around 86.7% of your weekly target hours for this category, which is commendable as it keeps you on track with your overall goals.\n\nComparing this to the previous week (Mar 23 - Mar 29), your focus on work slightly decreased by about 10.1 hours, indicating a relatively balanced distribution of time across your activities during these two weeks. However, it's essential to maintain that balance and ensure you allocate sufficient time for other important areas such as personal projects, courses & certifications, and health & fitness as well.\n\nIn addition to the data provided, I cannot estimate or comment on your productivity, work quality, or job satisfaction. Those aspects are best evaluated by your own self-assessment and feedback from colleagues or superiors. Keep up the good work!",
+                "timestamp": "2026-04-03T13:36:36.023Z"
+              },
+              {
+                "role": "user",
+                "content": "Could you find the correlation of the locked in with the other factors",
+                "timestamp": "2026-04-03T13:40:24.572Z"
+              },
+              {
+                "role": "assistant",
+                "content": "In the data provided, the \"locked in\" score doesn't seem to be correlated with specific factors such as work hours, course hours, or health and fitness activities. The \"locked in\" score represents a personal productivity measurement that considers the user's daily habits and consistency over the past few days. It's designed to reflect how focused and productive the user is within their current routine.\n\nHowever, it's essential to remember that every individual has unique circumstances, and correlation between different factors can vary significantly from one person to another. Improving productivity often involves finding a balance among various aspects of life, such as work, personal projects, courses, health, and passive income.\n\nIn the current week (Mar 30 - Apr 5), the \"locked in\" score is 2, while last week's (Mar 23 - Mar 29) was 2.33. It's always beneficial to maintain consistency and focus on your priorities, which are reflected in this week's budget:\n\n- Courses & Certs: Consider prioritizing it today as it is 3.9 hours behind pace with two days left in the current week.\n- Passive Income: This category has a target of 2 hours and none have been logged yet, so it would be an excellent idea to allocate some time towards this goal if possible.\n- Personal Projects: No specific targets are set for this category, but finding time to work on personal projects can contribute to overall growth and well-being.\n- Job / Main Work: Aim to maintain the current momentum, as it is currently on track with the weekly budget.\n- Health & Fitness: This week's target is 6 hours, and so far, 3 have been logged. Continue focusing on maintaining a healthy lifestyle by balancing work and physical activities.\n\nStay focused, prioritize your tasks effectively, and remember that consistency is key to achieving your goals!",
+                "timestamp": "2026-04-03T13:40:40.427Z"
+              },
+              {
+                "role": "user",
+                "content": "Can we see what the progress of the time allocation has been through out the month of March?",
+                "timestamp": "2026-04-12T09:09:41.246Z"
+              },
+              {
+                "role": "assistant",
+                "content": "Based on the data provided, I can give you an overview of your time allocation throughout March. Here's how many hours you spent on each category during that period:\n\n1. Courses & Certs: 20.1 hours\n2. Passive Income: 0 hours\n3. Personal Projects: 9 hours\n4. Job / Main Work: 203.3 hours\n5. Health & Fitness: 23.2 hours\n\nThis breakdown shows the total time you spent in each category throughout March. As we move forward, it would be beneficial to focus on areas where you might be behind your targets, such as Courses & Certs. Keep up the good work with your current streak and stay consistent!",
+                "timestamp": "2026-04-12T09:09:49.586Z"
+              }
+            ]
+          },
+          {
+            "id": "22847a42-16b6-41d7-937f-83c059b05baa",
+            "title": "Weekly Progress Report",
+            "createdAt": "2026-03-20T14:30:50.723Z",
+            "updatedAt": "2026-03-20T14:31:26.641Z",
+            "messages": [
+              {
+                "role": "user",
+                "content": "How did I do this week?",
+                "timestamp": "2026-03-20T14:30:52.491Z"
+              },
+              {
+                "role": "assistant",
+                "content": "This week, you've made some significant progress! You've logged 40.5 hours across all your categories, with an impressive 79 hours dedicated to work alone. However, it seems that our focus this week was primarily on job-related tasks and health maintenance, leaving some room for improvement in other areas like courses and tech challenges.\n\nLet me highlight the area that needs attention most: Courses & Certs. With only 1 day left, you're currently 7.9 hours behind your target for this week. It would be beneficial to prioritize these study sessions, especially considering the deadline for your Microsoft Certified: Azure AI Fundamentals course is still over a year away.\n\nRemember, consistency is key to success! You've maintained a streak of 12 days, and it seems like you're close to reaching your best streak. Keep going strong and make sure to log your activities for today to maintain that streak!\n\nOverall, keep up the great work, and let's aim to maximize our productivity during the remaining days of this week. I'll be here to guide you every step of the way.",
+                "timestamp": "2026-03-20T14:31:07.712Z"
+              },
+              {
+                "role": "user",
+                "content": "Generate a structured weekly review covering: total hours this week by category, week over week comparison for each category, locked in score for the week, goals completion rate, biggest improvement, biggest gap, and one suggested focus for next week. Always mention the week ranges from weekRanges.thisWeek and weekRanges.lastWeek.",
+                "timestamp": "2026-03-20T14:31:11.838Z"
+              },
+              {
+                "role": "assistant",
+                "content": "Great job on this week's progress! Let's take a look at how you did across different categories:\n\n**This Week (Mar 16 - Mar 22):**\n- Job / Main Work: 36.5 hours (On Track)\n- Health & Fitness: 4 hours\n- Courses & Certs: 0 hours\n- Personal Projects: 0 hours\n- Tech Challenges: 0 hours\n- Passive Income: 0 hours\n\n**Last Week (Mar 9 - Mar 15):**\n- Job / Main Work: 42.5 hours\n- Health & Fitness: 3.5 hours\n- Courses & Certs: 1.1 hours\n- Personal Projects: 2 hours\n- Tech Challenges: 8 hours\n- Passive Income: 0 hours\n\nAs you can see, this week has shown a slight decrease in Job / Main Work and Personal Projects compared to last week, but you've managed to keep up with Health & Fitness. Unfortunately, Courses & Certs have taken a backseat this week, which is something we should address moving forward.\n\nYour locked-in score for the week is 0.99. This shows that you are maintaining a consistent effort in managing your time effectively.\n\nUnfortunately, only 11% of your goals were completed this week. The biggest improvement was seen in Job / Main Work and Health & Fitness, while Courses & Certs and Personal Projects showed the most significant gap.\n\nOne suggested focus for next week should be catching up on Courses & Certs. With just two days left, prioritizing this category can help you meet your targets and make progress towards achieving your long-term goals. Keep up the good work!",
+                "timestamp": "2026-03-20T14:31:26.641Z"
+              }
+            ]
+          }
+        ],
+        "activeChatThreadId": "efa32f24-75ea-4080-99d0-c7665c26f94d"
+      },
+      "errors": []
+    },
+    "store_shape": {
+      "allRequiredKeysPresent": true,
+      "missingKeys": [],
+      "typeErrors": [],
+      "categoryTargetsValid": false,
+      "missingCategoryTargets": [
+        "personal"
+      ],
+      "customViewsCount": 0,
+      "customViewsShapeValid": true,
+      "customViewsShapeErrors": []
+    },
+    "session_integrity": {
+      "totalSessions": 60,
+      "validSessions": 60,
+      "invalidSessions": [],
+      "orphanedSessions": [],
+      "categoryBreakdown": {
+        "health": 21,
+        "work": 23,
+        "courses": 9,
+        "personal": 7
+      }
+    },
+    "ai_context_inputs": {
+      "weeklyBudgetInputsValid": true,
+      "streakInputsValid": true,
+      "goalsInputsValid": true,
+      "lockedInInputsValid": true,
+      "issues": []
+    },
+    "ollama": {
+      "ollamaReachable": true,
+      "modelAvailable": true,
+      "chatEndpointWorks": true,
+      "generateEndpointWorks": true,
+      "responseSnippet": " It seems like you've typed \"ping\" without any context. In a computer network, \"",
+      "errors": []
+    },
+    "raw_data_summary": {
+      "courses_count": 3,
+      "projects_count": 0,
+      "personal_projects_count": 2,
+      "sessions_count": 60,
+      "goals_count": 4,
+      "custom_views_count": 0,
+      "locked_in_days_count": 17,
+      "chat_threads_count": 2
+    }
+  },
+  "mistral_report": {
+    "report_timestamp": "2023-01-01T12:00:00",
+    "overall_status": "HEALTHY",
+    "checks": {
+      "persisted_file": {
+        "status": "PASS",
+        "finding": "",
+        "action_required": null
+      },
+      "store_schema": {
+        "status": "WARN",
+        "finding": "The 'personal' category targets are missing.",
+        "action_required": "Ensure all required category targets are provided."
+      },
+      "session_integrity": {
+        "status": "PASS",
+        "finding": "60 sessions found, with no invalid or orphaned sessions.",
+        "action_required": null
+      },
+      "ai_context_inputs": {
+        "status": "PASS",
+        "finding": "",
+        "action_required": null
+      },
+      "ollama_mistral": {
+        "status": "PASS",
+        "finding": "All endpoints are working.",
+        "action_required": null
+      }
+    },
+    "critical_issues": [],
+    "warnings": [
+      "The 'personal' category targets are missing."
+    ],
+    "data_summary": {
+      "total_sessions": 60,
+      "total_courses": 3,
+      "total_projects": 0,
+      "total_personal_projects": 2,
+      "total_goals": 4,
+      "total_custom_views": 0,
+      "category_breakdown": {
+        "health": 21,
+        "work": 23,
+        "courses": 9,
+        "personal": 7
+      }
+    },
+    "recommended_next_step": "Ensure all required category targets are provided."
+  }
+}
