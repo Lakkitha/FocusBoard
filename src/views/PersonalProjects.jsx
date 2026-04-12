@@ -334,16 +334,14 @@ function ProjectCard({ project, onEdit, onDelete }) {
       <div className="flex items-center justify-between text-xs text-surface-400">
         <span className="flex items-center gap-1">
           <Clock className="w-3 h-3" />
-          {(loggedMins / 60).toFixed(1)}h logged
+          {(loggedMins / 60).toFixed(1)}h logged · {project.targetHoursPerWeek}
+          h/wk target
         </span>
-        <span className="flex items-center gap-3">
-          {milestones.length > 0 && (
-            <span>
-              {milestoneDone}/{milestones.length} tasks
-            </span>
-          )}
-          <span>{project.targetHoursPerWeek}h/wk</span>
-        </span>
+        {milestones.length > 0 && (
+          <span>
+            {milestoneDone}/{milestones.length} tasks
+          </span>
+        )}
       </div>
 
       {milestones.length > 0 && (

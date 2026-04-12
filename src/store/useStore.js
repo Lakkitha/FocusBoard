@@ -20,9 +20,9 @@ const DEFAULT_STATE = {
   // Category targets (hours/week)
   categoryTargets: {
     courses: 10,
-    passive: 8,
+    passive: 5,
     work: 40,
-    health: 5,
+    health: 7,
     personal: 5,
   },
 
