@@ -5,6 +5,7 @@ import {
   Briefcase,
   Timer,
   CheckSquare,
+  Scale,
   Sparkles,
   ShieldCheck,
   Target,
@@ -24,6 +25,7 @@ const NAV_ITEMS = [
   { view: VIEWS.PERSONAL, label: "Personal Projects", icon: Briefcase },
   { view: VIEWS.LOG_SESSION, label: "Log Session", icon: Timer },
   { view: VIEWS.GOALS, label: "Weekly Goals", icon: CheckSquare },
+  { view: VIEWS.DECISIONS, label: "Decisions", icon: Scale },
   { view: VIEWS.LOCKED_IN, label: "Locked In", icon: ShieldCheck },
   { view: VIEWS.CALENDAR, label: "Calendar", icon: CalendarDays },
 ];
