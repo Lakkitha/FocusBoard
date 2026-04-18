@@ -29,6 +29,9 @@ const DEFAULT_STATE = {
   // Custom sidebar/time-tracking views [{ id, key, label, color, createdAt }]
   customViews: [],
 
+  // Decisions
+  decisions: [],
+
   // Locked In by date { 'YYYY-MM-DD': { morning: boolean, noon: boolean, night: boolean } }
   lockedInByDate: {},
 
@@ -118,6 +121,7 @@ async function saveToStorage(state) {
     goals: state.goals,
     categoryTargets: state.categoryTargets,
     customViews: state.customViews,
+    decisions: state.decisions,
     lockedInByDate: state.lockedInByDate,
     chatThreads: state.chatThreads,
     activeChatThreadId: state.activeChatThreadId,
@@ -208,6 +212,220 @@ export const useStore = create((set, get) => ({
         categoryTargets: nextTargets,
       };
     });
+    get().persist();
+  },
+
+  // ── Decisions ───────────────────────────────────────────────────────────
+  addDecision: (partialDecision = {}) => {
+    const newDecision = {
+      id: uid(),
+      title: "",
+      description: "",
+      status: "active",
+      createdAt: new Date().toISOString(),
+      decidedAt: null,
+      winnerId: null,
+      linkedProjectId: null,
+      criteria: [],
+      options: [],
+      ...partialDecision,
+    };
+
+    set((s) => ({ decisions: [newDecision, ...s.decisions] }));
+    get().persist();
+    return newDecision;
+  },
+
+  updateDecision: (id, updates) => {
+    set((s) => ({
+      decisions: s.decisions.map((decision) =>
+        decision.id === id ? { ...decision, ...updates } : decision,
+      ),
+    }));
+    get().persist();
+  },
+
+  deleteDecision: (id) => {
+    set((s) => ({
+      decisions: s.decisions.filter((decision) => decision.id !== id),
+    }));
+    get().persist();
+  },
+
+  addCriterion: (decisionId, partialCriterion = {}) => {
+    const newCriterion = {
+      id: uid(),
+      label: "",
+      weight: 5,
+      direction: "higher_is_better",
+      description: "",
+      ...partialCriterion,
+    };
+
+    set((s) => ({
+      decisions: s.decisions.map((decision) =>
+        decision.id === decisionId
+          ? { ...decision, criteria: [...decision.criteria, newCriterion] }
+          : decision,
+      ),
+    }));
+    get().persist();
+    return newCriterion;
+  },
+
+  updateCriterion: (decisionId, criterionId, updates) => {
+    set((s) => ({
+      decisions: s.decisions.map((decision) =>
+        decision.id === decisionId
+          ? {
+              ...decision,
+              criteria: decision.criteria.map((criterion) =>
+                criterion.id === criterionId
+                  ? { ...criterion, ...updates }
+                  : criterion,
+              ),
+            }
+          : decision,
+      ),
+    }));
+    get().persist();
+  },
+
+  deleteCriterion: (decisionId, criterionId) => {
+    set((s) => ({
+      decisions: s.decisions.map((decision) => {
+        if (decision.id !== decisionId) return decision;
+
+        const nextCriteria = decision.criteria.filter(
+          (criterion) => criterion.id !== criterionId,
+        );
+        const nextOptions = decision.options.map((option) => {
+          if (
+            !option.scores ||
+            !Object.prototype.hasOwnProperty.call(option.scores, criterionId)
+          ) {
+            return option;
+          }
+
+          const nextScores = { ...option.scores };
+          delete nextScores[criterionId];
+
+          return { ...option, scores: nextScores };
+        });
+
+        return { ...decision, criteria: nextCriteria, options: nextOptions };
+      }),
+    }));
+    get().persist();
+  },
+
+  addOption: (decisionId, partialOption = {}) => {
+    const newOption = {
+      id: uid(),
+      label: "",
+      notes: "",
+      scores: {},
+      ...partialOption,
+    };
+
+    set((s) => ({
+      decisions: s.decisions.map((decision) =>
+        decision.id === decisionId
+          ? { ...decision, options: [...decision.options, newOption] }
+          : decision,
+      ),
+    }));
+    get().persist();
+    return newOption;
+  },
+
+  updateOption: (decisionId, optionId, updates) => {
+    set((s) => ({
+      decisions: s.decisions.map((decision) =>
+        decision.id === decisionId
+          ? {
+              ...decision,
+              options: decision.options.map((option) =>
+                option.id === optionId ? { ...option, ...updates } : option,
+              ),
+            }
+          : decision,
+      ),
+    }));
+    get().persist();
+  },
+
+  deleteOption: (decisionId, optionId) => {
+    set((s) => ({
+      decisions: s.decisions.map((decision) =>
+        decision.id === decisionId
+          ? {
+              ...decision,
+              options: decision.options.filter(
+                (option) => option.id !== optionId,
+              ),
+            }
+          : decision,
+      ),
+    }));
+    get().persist();
+  },
+
+  setScore: (decisionId, optionId, criterionId, score) => {
+    const numericScore = Number(score);
+    const safeScore = Number.isFinite(numericScore) ? numericScore : 1;
+    const clampedScore = Math.min(10, Math.max(1, safeScore));
+
+    set((s) => ({
+      decisions: s.decisions.map((decision) =>
+        decision.id === decisionId
+          ? {
+              ...decision,
+              options: decision.options.map((option) =>
+                option.id === optionId
+                  ? {
+                      ...option,
+                      scores: { ...option.scores, [criterionId]: clampedScore },
+                    }
+                  : option,
+              ),
+            }
+          : decision,
+      ),
+    }));
+    get().persist();
+  },
+
+  commitDecision: (decisionId, winnerOptionId) => {
+    const decidedAt = new Date().toISOString();
+    set((s) => ({
+      decisions: s.decisions.map((decision) =>
+        decision.id === decisionId
+          ? {
+              ...decision,
+              status: "decided",
+              decidedAt,
+              winnerId: winnerOptionId,
+            }
+          : decision,
+      ),
+    }));
+    get().persist();
+  },
+
+  reopenDecision: (decisionId) => {
+    set((s) => ({
+      decisions: s.decisions.map((decision) =>
+        decision.id === decisionId
+          ? {
+              ...decision,
+              status: "active",
+              decidedAt: null,
+              winnerId: null,
+            }
+          : decision,
+      ),
+    }));
     get().persist();
   },
 

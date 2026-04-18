@@ -10,6 +10,8 @@ import LogSession from "./views/LogSession";
 import Goals from "./views/Goals";
 import LockedIn from "./views/LockedIn";
 import AIChat from "./views/AIChat";
+import Decisions from "./views/Decisions";
+import DecisionDetail from "./views/DecisionDetail";
 import CustomView from "./views/CustomView";
 import Calendar from "./components/Calendar";
 import { startNotificationEngine } from "./services/notificationEngine";
@@ -18,6 +20,7 @@ export default function App() {
   const init = useStore((s) => s.init);
   const initialized = useStore((s) => s.initialized);
   const customViews = useStore((s) => s.customViews);
+  const decisions = useStore((s) => s.decisions);
   const [view, setView] = useState(VIEWS.DASHBOARD);
   const notificationStopRef = useRef(null);
 
@@ -40,11 +43,20 @@ export default function App() {
   }, [initialized]);
 
   useEffect(() => {
-    if (!view.startsWith("custom-")) return;
-    if (!customViews.some((item) => item.key === view)) {
-      setView(VIEWS.DASHBOARD);
+    if (view.startsWith("custom-")) {
+      if (!customViews.some((item) => item.key === view)) {
+        setView(VIEWS.DASHBOARD);
+      }
+      return;
     }
-  }, [customViews, view]);
+
+    if (view.startsWith("decision-")) {
+      const decisionId = view.replace("decision-", "");
+      if (!decisions.some((decision) => decision.id === decisionId)) {
+        setView(VIEWS.DECISIONS);
+      }
+    }
+  }, [customViews, decisions, view]);
 
   if (!initialized) {
     return (
@@ -71,6 +83,8 @@ export default function App() {
         return <LogSession />;
       case VIEWS.GOALS:
         return <Goals />;
+      case VIEWS.DECISIONS:
+        return <Decisions onNavigate={setView} />;
       case VIEWS.LOCKED_IN:
         return <LockedIn />;
       case VIEWS.CALENDAR:
@@ -78,6 +92,12 @@ export default function App() {
       case VIEWS.AI:
         return <AIChat />;
       default:
+        if (view.startsWith("decision-")) {
+          const decisionId = view.replace("decision-", "");
+          return (
+            <DecisionDetail decisionId={decisionId} onNavigate={setView} />
+          );
+        }
         if (customViews.some((item) => item.key === view)) {
           return <CustomView viewKey={view} onNavigate={setView} />;
         }
