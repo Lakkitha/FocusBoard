@@ -1,10 +1,19 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import {
+  AlertTriangle,
+  CheckSquare,
   CheckCircle,
+  ChevronDown,
   ChevronLeft,
+  ChevronUp,
+  Loader2,
   Plus,
   RotateCcw,
+  Square,
+  Send,
+  Sparkles,
   Trash2,
+  Wand2,
 } from "lucide-react";
 import {
   Bar,
@@ -25,9 +34,296 @@ import {
   getScoreLabel,
   getWinMargin,
 } from "../utils/decisionEngine";
+import { chatWithOllama } from "../services/ollamaService";
+import { getChatContext } from "../utils/getChatContext";
 import { useStore } from "../store/useStore";
 
 const TABS = ["Setup", "Score Matrix", "Results"];
+const ASSISTANT_START_PROMPT =
+  "Start the decision assistant. Ask the first question to build the weighted decision matrix.";
+const ASSISTANT_MATRIX_PROMPT =
+  "Based on what we discussed, propose a full decision matrix now with options, criteria, weights, directions, and scores.";
+const ASSISTANT_OFFLINE_MESSAGE =
+  "Ollama is not running. Open a terminal and run: ollama serve";
+
+function normalizeLabel(value) {
+  const base = String(value || "")
+    .trim()
+    .toLowerCase();
+  const cleaned = base
+    .replace(/[^a-z0-9]+/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+  return cleaned || base;
+}
+
+function buildDecisionSystemPrompt(decision) {
+  const title = decision?.title || "Untitled decision";
+  const description = decision?.description || "";
+  const options = (decision?.options || []).map((option) => ({
+    label: option.label || "",
+    notes: option.notes || "",
+  }));
+  const criteria = (decision?.criteria || []).map((criterion) => ({
+    label: criterion.label || "",
+    weight: criterion.weight,
+    direction: criterion.direction,
+    description: criterion.description || "",
+  }));
+
+  const optionsText = options.length
+    ? options
+        .map((item) => `- ${item.label}${item.notes ? ` (${item.notes})` : ""}`)
+        .join("\n")
+    : "None yet.";
+  const criteriaText = criteria.length
+    ? criteria
+        .map(
+          (item) =>
+            `- ${item.label} | weight: ${item.weight ?? ""} | direction: ${
+              item.direction || "higher_is_better"
+            }${item.description ? ` | ${item.description}` : ""}`,
+        )
+        .join("\n")
+    : "None yet.";
+
+  return `You are FocusBoard's Decision Assistant. Your job is to guide the user through a weighted decision matrix by asking one short follow-up question at a time.
+
+Decision:
+- Title: ${title}
+- Description: ${description || "None"}
+
+Existing options:
+${optionsText}
+
+Existing criteria:
+${criteriaText}
+
+Rules:
+- Ask one question at a time.
+- Suggest new options/criteria only if they are not already listed.
+- When asked to propose a matrix, include scores for every option/criterion pair.
+- Weights can be any positive numbers (they will be normalized later). Prefer 1-10.
+- Directions must be "higher_is_better" or "lower_is_better".
+- Scores must be integers from 1 to 10.
+- When asking a question, leave suggestions arrays empty.
+- When suggesting new items, do not repeat existing items.
+- For scores, reference option and criterion labels exactly as shown above.
+- Respond ONLY with a JSON object in this exact shape:
+{
+  "assistantMessage": "your question or guidance",
+  "suggestions": {
+    "options": [{ "label": "", "notes": "" }],
+    "criteria": [{ "label": "", "weight": 5, "direction": "higher_is_better", "description": "" }],
+    "scores": [{ "option": "Option label", "criterion": "Criterion label", "score": 7 }]
+  }
+}
+- Use empty arrays when there are no new suggestions.
+- Do not wrap the JSON in code fences or add extra text.`;
+}
+
+function extractJsonObject(text) {
+  const start = text.indexOf("{");
+  const end = text.lastIndexOf("}");
+  if (start === -1 || end === -1 || end <= start) return null;
+  return text.slice(start, end + 1);
+}
+
+function parseAssistantPayload(text) {
+  const trimmed = String(text || "").trim();
+  if (!trimmed) return null;
+
+  const jsonText = extractJsonObject(trimmed);
+  if (jsonText) {
+    try {
+      const parsed = JSON.parse(jsonText);
+      return {
+        assistantMessage: String(
+          parsed?.assistantMessage || parsed?.message || parsed?.question || "",
+        ).trim(),
+        suggestions:
+          parsed?.suggestions || parsed?.matrix || parsed?.data || null,
+      };
+    } catch {
+      return { assistantMessage: trimmed, suggestions: null };
+    }
+  }
+
+  return { assistantMessage: trimmed, suggestions: null };
+}
+
+function normalizeSuggestions(rawSuggestions) {
+  const suggestions = rawSuggestions || {};
+  return {
+    options: Array.isArray(suggestions.options) ? suggestions.options : [],
+    criteria: Array.isArray(suggestions.criteria) ? suggestions.criteria : [],
+    scores: Array.isArray(suggestions.scores) ? suggestions.scores : [],
+  };
+}
+
+function createEmptySelection() {
+  return {
+    options: new Set(),
+    criteria: new Set(),
+    scores: new Set(),
+  };
+}
+
+function buildSelectionFromSuggestions(suggestions) {
+  const options = new Set();
+  const criteria = new Set();
+  const scores = new Set();
+
+  (suggestions?.options || []).forEach((item) => {
+    const key = normalizeLabel(item?.label);
+    if (key) options.add(key);
+  });
+
+  (suggestions?.criteria || []).forEach((item) => {
+    const key = normalizeLabel(item?.label);
+    if (key) criteria.add(key);
+  });
+
+  (suggestions?.scores || []).forEach((item) => {
+    const optionKey = normalizeLabel(item?.option);
+    const criterionKey = normalizeLabel(item?.criterion);
+    if (!optionKey || !criterionKey) return;
+    scores.add(`${optionKey}::${criterionKey}`);
+  });
+
+  return { options, criteria, scores };
+}
+
+function coerceOptionSuggestion(item) {
+  if (!item) return null;
+  if (typeof item === "string") {
+    return { label: item, notes: "" };
+  }
+  if (typeof item === "object") {
+    const label = item.label || item.name || "";
+    return {
+      label,
+      notes: item.notes || item.note || "",
+    };
+  }
+  return null;
+}
+
+function coerceCriterionSuggestion(item) {
+  if (!item) return null;
+  if (typeof item === "string") {
+    return {
+      label: item,
+      weight: 5,
+      direction: "higher_is_better",
+      description: "",
+    };
+  }
+  if (typeof item === "object") {
+    return {
+      label: item.label || item.name || "",
+      weight: item.weight,
+      direction: item.direction,
+      description: item.description || item.details || "",
+    };
+  }
+  return null;
+}
+
+function coerceScoreSuggestion(item) {
+  if (!item || typeof item !== "object") return null;
+  return {
+    option: item.option || item.optionLabel || item.option_name || "",
+    criterion:
+      item.criterion || item.criterionLabel || item.criterion_name || "",
+    score: item.score,
+  };
+}
+
+function sanitizeSuggestions(rawSuggestions, options = [], criteria = []) {
+  const normalized = normalizeSuggestions(rawSuggestions);
+  const existingOptions = new Set(
+    options
+      .filter((option) => option.label)
+      .map((option) => normalizeLabel(option.label)),
+  );
+  const existingCriteria = new Set(
+    criteria
+      .filter((criterion) => criterion.label)
+      .map((criterion) => normalizeLabel(criterion.label)),
+  );
+
+  const optionMap = new Map();
+  normalized.options.forEach((item) => {
+    const coerced = coerceOptionSuggestion(item);
+    if (!coerced) return;
+    const label = String(coerced.label || "").trim();
+    if (!label) return;
+    const key = normalizeLabel(label);
+    if (!key || existingOptions.has(key) || optionMap.has(key)) return;
+    optionMap.set(key, { label, notes: String(coerced.notes || "") });
+  });
+
+  const criterionMap = new Map();
+  normalized.criteria.forEach((item) => {
+    const coerced = coerceCriterionSuggestion(item);
+    if (!coerced) return;
+    const label = String(coerced.label || "").trim();
+    if (!label) return;
+    const key = normalizeLabel(label);
+    if (!key || existingCriteria.has(key) || criterionMap.has(key)) return;
+
+    const weightValue = Number(coerced.weight);
+    const weight = Number.isFinite(weightValue)
+      ? Math.min(100, Math.max(1, weightValue))
+      : 5;
+    const direction =
+      coerced.direction === "lower_is_better"
+        ? "lower_is_better"
+        : "higher_is_better";
+
+    criterionMap.set(key, {
+      label,
+      weight,
+      direction,
+      description: String(coerced.description || ""),
+    });
+  });
+
+  const scoreList = [];
+  const scoreKeys = new Set();
+  normalized.scores.forEach((item) => {
+    const coerced = coerceScoreSuggestion(item);
+    if (!coerced) return;
+    const optionLabel = String(coerced.option || "").trim();
+    const criterionLabel = String(coerced.criterion || "").trim();
+    if (!optionLabel || !criterionLabel) return;
+
+    const optionKey = normalizeLabel(optionLabel);
+    const criterionKey = normalizeLabel(criterionLabel);
+    if (!optionKey || !criterionKey) return;
+
+    const scoreValue = Number(coerced.score);
+    if (!Number.isFinite(scoreValue)) return;
+
+    const score = Math.min(10, Math.max(1, Math.round(scoreValue)));
+    const key = `${optionKey}::${criterionKey}`;
+    if (scoreKeys.has(key)) return;
+    scoreKeys.add(key);
+
+    scoreList.push({
+      option: optionLabel,
+      criterion: criterionLabel,
+      score,
+    });
+  });
+
+  return {
+    options: [...optionMap.values()],
+    criteria: [...criterionMap.values()],
+    scores: scoreList,
+  };
+}
 
 export default function DecisionDetail({ decisionId, onNavigate }) {
   const decision = useStore((s) =>
@@ -42,9 +338,23 @@ export default function DecisionDetail({ decisionId, onNavigate }) {
   const setScore = useStore((s) => s.setScore);
   const commitDecision = useStore((s) => s.commitDecision);
   const reopenDecision = useStore((s) => s.reopenDecision);
+  const appendDecisionAssistantLog = useStore(
+    (s) => s.appendDecisionAssistantLog,
+  );
+  const clearDecisionAssistantLog = useStore(
+    (s) => s.clearDecisionAssistantLog,
+  );
 
   const [activeTab, setActiveTab] = useState("Setup");
   const [expandedResults, setExpandedResults] = useState(() => new Set());
+  const [assistantOpen, setAssistantOpen] = useState(false);
+  const [assistantInput, setAssistantInput] = useState("");
+  const [assistantBusy, setAssistantBusy] = useState(false);
+  const [assistantError, setAssistantError] = useState("");
+  const [assistantSuggestions, setAssistantSuggestions] = useState(null);
+  const [assistantSelection, setAssistantSelection] =
+    useState(createEmptySelection);
+  const assistantAutoStartRef = useRef(false);
 
   if (!decision) {
     return (
@@ -70,6 +380,21 @@ export default function DecisionDetail({ decisionId, onNavigate }) {
     0,
   );
   const resultsDisabled = criteria.length === 0 || options.length === 0;
+  const assistantLog = decision.assistantLog || [];
+  const shouldAutoOpen =
+    assistantLog.length === 0 && criteria.length === 0 && options.length === 0;
+
+  useEffect(() => {
+    if (shouldAutoOpen) {
+      setAssistantOpen(true);
+    }
+  }, [shouldAutoOpen]);
+
+  useEffect(() => {
+    if (assistantLog.length === 0) {
+      assistantAutoStartRef.current = false;
+    }
+  }, [assistantLog.length]);
 
   const results = useMemo(() => {
     if (resultsDisabled) return [];
@@ -96,6 +421,225 @@ export default function DecisionDetail({ decisionId, onNavigate }) {
     score: item.totalScore,
     optionId: item.optionId,
   }));
+
+  const sendAssistantMessage = async (
+    message,
+    { logUserMessage = true } = {},
+  ) => {
+    const trimmed = String(message || "").trim();
+    if (!trimmed || assistantBusy) return;
+
+    setAssistantError("");
+
+    const historySeed = logUserMessage
+      ? [...assistantLog, { role: "user", content: trimmed }]
+      : assistantLog;
+
+    if (logUserMessage) {
+      appendDecisionAssistantLog(decisionId, {
+        role: "user",
+        content: trimmed,
+        timestamp: new Date().toISOString(),
+      });
+    }
+
+    setAssistantBusy(true);
+
+    try {
+      const conversationHistory = getChatContext(historySeed, 14);
+      const result = await chatWithOllama({
+        userMessage: trimmed,
+        conversationHistory,
+        systemPromptOverride: buildDecisionSystemPrompt(decision),
+      });
+
+      if (result?.error === "offline") {
+        setAssistantError(ASSISTANT_OFFLINE_MESSAGE);
+      }
+
+      const payload = parseAssistantPayload(result?.text || "");
+      const assistantMessage =
+        payload?.assistantMessage ||
+        result?.text ||
+        "I could not generate a response just now.";
+
+      appendDecisionAssistantLog(decisionId, {
+        role: "assistant",
+        content: assistantMessage,
+        timestamp: new Date().toISOString(),
+      });
+
+      const suggestions = sanitizeSuggestions(
+        payload?.suggestions,
+        options,
+        criteria,
+      );
+      const hasSuggestions =
+        suggestions.options.length > 0 ||
+        suggestions.criteria.length > 0 ||
+        suggestions.scores.length > 0;
+
+      if (hasSuggestions) {
+        setAssistantSuggestions(suggestions);
+        setAssistantSelection(buildSelectionFromSuggestions(suggestions));
+      } else {
+        setAssistantSuggestions(null);
+        setAssistantSelection(createEmptySelection());
+      }
+    } catch (error) {
+      console.error("Decision assistant error:", error);
+      setAssistantError("Something went wrong. Please try again.");
+      appendDecisionAssistantLog(decisionId, {
+        role: "assistant",
+        content: "I hit a snag. Please try again in a moment.",
+        timestamp: new Date().toISOString(),
+      });
+    } finally {
+      setAssistantBusy(false);
+    }
+  };
+
+  useEffect(() => {
+    if (!assistantOpen) return;
+    if (assistantLog.length > 0) return;
+    if (assistantAutoStartRef.current || assistantBusy) return;
+
+    assistantAutoStartRef.current = true;
+    sendAssistantMessage(ASSISTANT_START_PROMPT, { logUserMessage: false });
+  }, [assistantOpen, assistantBusy, assistantLog.length]);
+
+  const handleAssistantSubmit = (event) => {
+    event?.preventDefault?.();
+    if (!assistantInput.trim()) return;
+    sendAssistantMessage(assistantInput, { logUserMessage: true });
+    setAssistantInput("");
+  };
+
+  const handleAssistantMatrix = () => {
+    sendAssistantMessage(ASSISTANT_MATRIX_PROMPT, { logUserMessage: true });
+  };
+
+  const handleAssistantReset = () => {
+    if (!confirm("Clear the assistant log for this decision?")) return;
+    clearDecisionAssistantLog(decisionId);
+    setAssistantSuggestions(null);
+    setAssistantSelection(createEmptySelection());
+    setAssistantInput("");
+  };
+
+  const toggleAssistantSelection = (type, key) => {
+    if (!key) return;
+    setAssistantSelection((prev) => {
+      const next = {
+        options: new Set(prev.options),
+        criteria: new Set(prev.criteria),
+        scores: new Set(prev.scores),
+      };
+      if (next[type]?.has(key)) {
+        next[type].delete(key);
+      } else {
+        next[type].add(key);
+      }
+      return next;
+    });
+  };
+
+  const selectedCounts = {
+    options: assistantSelection.options.size,
+    criteria: assistantSelection.criteria.size,
+    scores: assistantSelection.scores.size,
+  };
+
+  const selectedTotal =
+    selectedCounts.options + selectedCounts.criteria + selectedCounts.scores;
+
+  const handleApplySuggestions = () => {
+    if (!assistantSuggestions) return;
+
+    const sanitized = sanitizeSuggestions(
+      assistantSuggestions,
+      options,
+      criteria,
+    );
+    const existingOptions = new Map(
+      options
+        .filter((option) => option.label)
+        .map((option) => [normalizeLabel(option.label), option]),
+    );
+    const existingCriteria = new Map(
+      criteria
+        .filter((criterion) => criterion.label)
+        .map((criterion) => [normalizeLabel(criterion.label), criterion]),
+    );
+
+    sanitized.options.forEach((item) => {
+      const label = String(item?.label || "").trim();
+      if (!label) return;
+      const key = normalizeLabel(label);
+      if (!assistantSelection.options.has(key)) return;
+      if (existingOptions.has(key)) return;
+
+      const created = addOption(decisionId, {
+        label,
+        notes: String(item?.notes || ""),
+      });
+
+      if (created?.id) {
+        existingOptions.set(key, created);
+      }
+    });
+
+    sanitized.criteria.forEach((item) => {
+      const label = String(item?.label || "").trim();
+      if (!label) return;
+      const key = normalizeLabel(label);
+      if (!assistantSelection.criteria.has(key)) return;
+      if (existingCriteria.has(key)) return;
+
+      const direction =
+        item?.direction === "lower_is_better"
+          ? "lower_is_better"
+          : "higher_is_better";
+      const weight = Number(item?.weight);
+
+      const created = addCriterion(decisionId, {
+        label,
+        description: String(item?.description || ""),
+        weight: Number.isFinite(weight) && weight > 0 ? weight : 5,
+        direction,
+      });
+
+      if (created?.id) {
+        existingCriteria.set(key, created);
+      }
+    });
+
+    sanitized.scores.forEach((item) => {
+      const optionKey = normalizeLabel(item?.option);
+      const criterionKey = normalizeLabel(item?.criterion);
+      const scoreValue = Number(item?.score);
+      if (!optionKey || !criterionKey || !Number.isFinite(scoreValue)) return;
+
+      const scoreKey = `${optionKey}::${criterionKey}`;
+      if (!assistantSelection.scores.has(scoreKey)) return;
+
+      const option = existingOptions.get(optionKey);
+      const criterion = existingCriteria.get(criterionKey);
+      if (!option || !criterion) return;
+
+      if (
+        option.scores &&
+        Object.prototype.hasOwnProperty.call(option.scores, criterion.id)
+      ) {
+        return;
+      }
+
+      setScore(decisionId, option.id, criterion.id, scoreValue);
+    });
+
+    setAssistantSuggestions(null);
+    setAssistantSelection(createEmptySelection());
+  };
 
   const toggleBreakdown = (optionId) => {
     setExpandedResults((prev) => {
@@ -141,6 +685,313 @@ export default function DecisionDetail({ decisionId, onNavigate }) {
             <div className="bg-brand-green/10 border border-brand-green/30 text-brand-green rounded-lg px-4 py-2 text-sm">
               <span aria-hidden="true">&#10003;</span> Decision made:{" "}
               {winnerLabel}
+            </div>
+          ) : null}
+        </div>
+
+        {criteria.length === 0 && options.length === 0 ? (
+          <div className="card space-y-2">
+            <p className="text-sm font-semibold text-surface-50">
+              How weighted decisions work
+            </p>
+            <p className="text-xs text-surface-300">
+              Add options, define criteria, then score each option from 1 to 10.
+              We normalize your weights so only their relative importance
+              matters.
+            </p>
+            <div className="text-xs text-surface-400 space-y-1">
+              <p>
+                1) Each criterion gets a weight and direction (higher or lower
+                is better).
+              </p>
+              <p>2) Scores are weighted and summed into a total out of 10.</p>
+              <p>
+                3) For "lower is better", scores are inverted so lower values
+                rank higher.
+              </p>
+            </div>
+          </div>
+        ) : null}
+
+        <div className="card space-y-4">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <Sparkles className="w-4 h-4 text-brand-purple" />
+              <div>
+                <p className="text-sm font-semibold text-surface-50">
+                  Decision Assistant
+                </p>
+                <p className="text-xs text-surface-400">
+                  Guided questions to build your matrix
+                </p>
+              </div>
+            </div>
+            <button
+              className="btn-ghost flex items-center gap-2"
+              onClick={() => setAssistantOpen((prev) => !prev)}
+            >
+              {assistantOpen ? (
+                <>
+                  Hide
+                  <ChevronUp className="w-4 h-4" />
+                </>
+              ) : (
+                <>
+                  Show
+                  <ChevronDown className="w-4 h-4" />
+                </>
+              )}
+            </button>
+          </div>
+
+          {assistantOpen ? (
+            <div className="space-y-4">
+              {assistantError ? (
+                <div className="flex items-start gap-2 text-xs text-brand-red bg-brand-red/10 border border-brand-red/30 rounded-lg px-3 py-2">
+                  <AlertTriangle className="w-4 h-4 mt-0.5 flex-shrink-0" />
+                  <span>{assistantError}</span>
+                </div>
+              ) : null}
+
+              <div className="space-y-3 max-h-64 overflow-y-auto">
+                {assistantLog.length === 0 && !assistantBusy ? (
+                  <p className="text-sm text-surface-400">
+                    The assistant will ask a few questions to shape your
+                    criteria, options, and scores.
+                  </p>
+                ) : null}
+                {assistantLog.map((entry, index) => {
+                  const isUser = entry.role === "user";
+                  return (
+                    <div
+                      key={entry.timestamp || index}
+                      className={`flex ${isUser ? "justify-end" : "justify-start"}`}
+                    >
+                      <div
+                        className={`max-w-[85%] rounded-lg px-3 py-2 text-sm whitespace-pre-wrap ${
+                          isUser
+                            ? "bg-brand-blue/30 text-white"
+                            : "bg-surface-600 text-surface-100 border border-surface-500"
+                        }`}
+                      >
+                        {entry.content}
+                      </div>
+                    </div>
+                  );
+                })}
+                {assistantBusy ? (
+                  <div className="flex items-center gap-2 text-xs text-surface-400">
+                    <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                    Thinking...
+                  </div>
+                ) : null}
+              </div>
+
+              <form
+                onSubmit={handleAssistantSubmit}
+                className="flex flex-wrap items-center gap-2"
+              >
+                <input
+                  className="input flex-1"
+                  placeholder="Answer the assistant or ask a question..."
+                  value={assistantInput}
+                  onChange={(event) => setAssistantInput(event.target.value)}
+                  disabled={assistantBusy}
+                />
+                <button
+                  type="submit"
+                  className="btn-primary flex items-center gap-2"
+                  disabled={assistantBusy || !assistantInput.trim()}
+                >
+                  <Send className="w-4 h-4" />
+                  Send
+                </button>
+              </form>
+
+              <div className="flex flex-wrap gap-2">
+                <button
+                  type="button"
+                  className="btn-secondary flex items-center gap-2"
+                  onClick={handleAssistantMatrix}
+                  disabled={assistantBusy}
+                >
+                  <Sparkles className="w-4 h-4" />
+                  Generate matrix
+                </button>
+                <button
+                  type="button"
+                  className="btn-ghost"
+                  onClick={handleAssistantReset}
+                  disabled={assistantBusy}
+                >
+                  Reset assistant
+                </button>
+              </div>
+
+              {assistantSuggestions ? (
+                <div className="bg-surface-800 border border-surface-600 rounded-lg p-3 space-y-2">
+                  <div className="flex items-center justify-between">
+                    <p className="text-xs font-medium text-surface-300">
+                      Suggested additions
+                    </p>
+                    <button
+                      type="button"
+                      className="btn-ghost text-xs"
+                      onClick={() => {
+                        setAssistantSuggestions(null);
+                        setAssistantSelection(createEmptySelection());
+                      }}
+                    >
+                      Clear
+                    </button>
+                  </div>
+                  <div className="text-xs text-surface-400">
+                    Selected {selectedTotal} of{" "}
+                    {assistantSuggestions.options.length +
+                      assistantSuggestions.criteria.length +
+                      assistantSuggestions.scores.length}
+                  </div>
+
+                  {assistantSuggestions.options.length > 0 ? (
+                    <div className="space-y-2">
+                      <p className="text-xs text-surface-400">Options</p>
+                      <div className="space-y-1">
+                        {assistantSuggestions.options.map((item, index) => {
+                          const key = normalizeLabel(item?.label);
+                          const selected = assistantSelection.options.has(key);
+                          return (
+                            <button
+                              key={`${item.label}-${index}`}
+                              type="button"
+                              onClick={() =>
+                                toggleAssistantSelection("options", key)
+                              }
+                              className={`w-full flex items-center gap-2 px-2 py-1 rounded-md border text-xs transition-colors ${
+                                selected
+                                  ? "border-brand-purple/40 bg-brand-purple/10 text-surface-50"
+                                  : "border-surface-600 text-surface-300 hover:bg-surface-700"
+                              }`}
+                            >
+                              {selected ? (
+                                <CheckSquare className="w-3.5 h-3.5 text-brand-purple" />
+                              ) : (
+                                <Square className="w-3.5 h-3.5 text-surface-400" />
+                              )}
+                              <span className="truncate">
+                                {item.label || "Untitled option"}
+                              </span>
+                              {item.notes ? (
+                                <span className="text-surface-500 truncate">
+                                  - {item.notes}
+                                </span>
+                              ) : null}
+                            </button>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  ) : null}
+
+                  {assistantSuggestions.criteria.length > 0 ? (
+                    <div className="space-y-2">
+                      <p className="text-xs text-surface-400">Criteria</p>
+                      <div className="space-y-1">
+                        {assistantSuggestions.criteria.map((item, index) => {
+                          const key = normalizeLabel(item?.label);
+                          const selected = assistantSelection.criteria.has(key);
+                          return (
+                            <button
+                              key={`${item.label}-${index}`}
+                              type="button"
+                              onClick={() =>
+                                toggleAssistantSelection("criteria", key)
+                              }
+                              className={`w-full flex items-center gap-2 px-2 py-1 rounded-md border text-xs transition-colors ${
+                                selected
+                                  ? "border-brand-purple/40 bg-brand-purple/10 text-surface-50"
+                                  : "border-surface-600 text-surface-300 hover:bg-surface-700"
+                              }`}
+                            >
+                              {selected ? (
+                                <CheckSquare className="w-3.5 h-3.5 text-brand-purple" />
+                              ) : (
+                                <Square className="w-3.5 h-3.5 text-surface-400" />
+                              )}
+                              <span className="truncate">
+                                {item.label || "Untitled criterion"}
+                              </span>
+                              <span className="text-surface-500">
+                                {item.weight ? `(${item.weight})` : ""}
+                              </span>
+                              <span className="text-surface-500 truncate">
+                                {item.direction === "lower_is_better"
+                                  ? "Lower"
+                                  : "Higher"}
+                              </span>
+                            </button>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  ) : null}
+
+                  {assistantSuggestions.scores.length > 0 ? (
+                    <div className="space-y-2">
+                      <p className="text-xs text-surface-400">Scores</p>
+                      <div className="space-y-1 max-h-40 overflow-y-auto">
+                        {assistantSuggestions.scores.map((item, index) => {
+                          const optionKey = normalizeLabel(item?.option);
+                          const criterionKey = normalizeLabel(item?.criterion);
+                          const scoreKey =
+                            optionKey && criterionKey
+                              ? `${optionKey}::${criterionKey}`
+                              : "";
+                          const selected = scoreKey
+                            ? assistantSelection.scores.has(scoreKey)
+                            : false;
+                          return (
+                            <button
+                              key={`${item.option}-${item.criterion}-${index}`}
+                              type="button"
+                              onClick={() =>
+                                toggleAssistantSelection("scores", scoreKey)
+                              }
+                              className={`w-full flex items-center gap-2 px-2 py-1 rounded-md border text-xs transition-colors ${
+                                selected
+                                  ? "border-brand-purple/40 bg-brand-purple/10 text-surface-50"
+                                  : "border-surface-600 text-surface-300 hover:bg-surface-700"
+                              }`}
+                            >
+                              {selected ? (
+                                <CheckSquare className="w-3.5 h-3.5 text-brand-purple" />
+                              ) : (
+                                <Square className="w-3.5 h-3.5 text-surface-400" />
+                              )}
+                              <span className="truncate">
+                                {item.option || "Option"} /{" "}
+                                {item.criterion || "Criterion"}
+                              </span>
+                              <span className="text-surface-500">
+                                {item.score}
+                              </span>
+                            </button>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  ) : null}
+
+                  <button
+                    type="button"
+                    className="btn-primary flex items-center gap-2"
+                    onClick={handleApplySuggestions}
+                    disabled={selectedTotal === 0}
+                  >
+                    <Wand2 className="w-4 h-4" />
+                    Apply suggestions
+                  </button>
+                </div>
+              ) : null}
             </div>
           ) : null}
         </div>
