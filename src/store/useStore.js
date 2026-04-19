@@ -228,6 +228,7 @@ export const useStore = create((set, get) => ({
       linkedProjectId: null,
       criteria: [],
       options: [],
+      assistantLog: [],
       ...partialDecision,
     };
 
@@ -423,6 +424,37 @@ export const useStore = create((set, get) => ({
               decidedAt: null,
               winnerId: null,
             }
+          : decision,
+      ),
+    }));
+    get().persist();
+  },
+
+  appendDecisionAssistantLog: (decisionId, message) => {
+    const entry = {
+      role: message?.role || "assistant",
+      content: String(message?.content || ""),
+      timestamp: message?.timestamp || new Date().toISOString(),
+    };
+
+    set((s) => ({
+      decisions: s.decisions.map((decision) =>
+        decision.id === decisionId
+          ? {
+              ...decision,
+              assistantLog: [...(decision.assistantLog || []), entry],
+            }
+          : decision,
+      ),
+    }));
+    get().persist();
+  },
+
+  clearDecisionAssistantLog: (decisionId) => {
+    set((s) => ({
+      decisions: s.decisions.map((decision) =>
+        decision.id === decisionId
+          ? { ...decision, assistantLog: [] }
           : decision,
       ),
     }));
